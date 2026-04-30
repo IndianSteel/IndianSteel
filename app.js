@@ -56,6 +56,8 @@
     historySearch: "",
     historyFrom: "",
     historyTo: "",
+    historyDatePicker: "",
+    historyCalendarMonth: "",
     addOpen: false,
     addStep: "Customer",
     addDraft: null,
@@ -92,6 +94,8 @@
     delete: '<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 14h10l1-14"/><path d="M9 7V4h6v3"/>',
     edit: '<path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4z"/><path d="m13 6 5 5"/>',
     close: '<path d="M6 6l12 12M18 6 6 18"/>',
+    "chevron-left": '<path d="m15 18-6-6 6-6"/>',
+    "chevron-right": '<path d="m9 18 6-6-6-6"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
     history: '<path fill="currentColor" stroke="none" d="M13 3a9 9 0 0 0-9 9H1l4 4 4-4H6a7 7 0 1 1 2.05 4.95l-1.42 1.42A9 9 0 1 0 13 3Zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12Z"/>',
     sync: '<path d="M20 7h-6a6 6 0 0 0-10 3"/><path d="m20 7-3-3"/><path d="M4 17h6a6 6 0 0 0 10-3"/><path d="m4 17 3 3"/>',
@@ -175,7 +179,7 @@
         email: "indiansteel@gmail.com",
         logoUri: ""
       },
-      adminControls: { users: [], updatedAt: 0 },
+      adminControls: { users: [], nonAdminVisibility: defaultVisibilitySettings(), updatedAt: 0 },
       userActivity: [],
       deletedLedgerEntryKeys: [],
       deletedAdvanceRecordKeys: {}
@@ -187,6 +191,44 @@
       clientId: GOOGLE_DRIVE_CLIENT_ID,
       folderId: GOOGLE_DRIVE_FOLDER_ID,
       fileName: DRIVE_FILE_NAME
+    };
+  }
+
+  function defaultVisibilitySettings() {
+    return {
+      dashboardSummaryCardsVisible: true,
+      dashboardSalesOverviewVisible: true,
+      historyDailySalesTotalVisible: true,
+      historyPrintButtonVisible: true,
+      advanceTotalVisible: true,
+      dueAmountTotalVisible: true
+    };
+  }
+
+  function normalizeVisibilitySettings(raw, fallback = defaultVisibilitySettings()) {
+    const source = raw && typeof raw === "object" ? raw : {};
+    const value = key => Object.prototype.hasOwnProperty.call(source, key) ? source[key] !== false : fallback[key] !== false;
+    return {
+      dashboardSummaryCardsVisible: value("dashboardSummaryCardsVisible"),
+      dashboardSalesOverviewVisible: value("dashboardSalesOverviewVisible"),
+      historyDailySalesTotalVisible: value("historyDailySalesTotalVisible"),
+      historyPrintButtonVisible: value("historyPrintButtonVisible"),
+      advanceTotalVisible: value("advanceTotalVisible"),
+      dueAmountTotalVisible: value("dueAmountTotalVisible")
+    };
+  }
+
+  function normalizeAdminControls(raw) {
+    const source = raw && typeof raw === "object" ? raw : {};
+    const nonAdminVisibility = normalizeVisibilitySettings(source.nonAdminVisibility, defaultVisibilitySettings());
+    return {
+      users: Array.isArray(source.users) ? source.users.map(rule => ({
+        ...rule,
+        email: String(rule && rule.email || "").toLowerCase(),
+        visibility: normalizeVisibilitySettings(rule && rule.visibility, nonAdminVisibility)
+      })).filter(rule => rule.email) : [],
+      nonAdminVisibility,
+      updatedAt: Number(source.updatedAt || 0)
     };
   }
 
@@ -225,7 +267,7 @@
       itemRates: source.itemRates && typeof source.itemRates === "object" ? source.itemRates : {},
       accountOptions: uniqStrings(source.accountOptions, DEFAULT_ACCOUNTS),
       businessProfile: { ...base.businessProfile, ...(source.businessProfile || {}) },
-      adminControls: source.adminControls && typeof source.adminControls === "object" ? source.adminControls : base.adminControls,
+      adminControls: normalizeAdminControls(source.adminControls),
       userActivity: Array.isArray(source.userActivity) ? source.userActivity : [],
       deletedLedgerEntryKeys: Array.isArray(source.deletedLedgerEntryKeys) ? source.deletedLedgerEntryKeys.filter(Boolean) : [],
       deletedAdvanceRecordKeys: source.deletedAdvanceRecordKeys && typeof source.deletedAdvanceRecordKeys === "object" ? source.deletedAdvanceRecordKeys : {}
@@ -522,6 +564,31 @@
 
   function canOpenApp() {
     return Boolean(session.email || session.localOnly || hasLocalBusinessData());
+  }
+
+  function normalizedSessionEmail() {
+    return String(session.email || "").toLowerCase();
+  }
+
+  function isCurrentAdmin() {
+    const email = normalizedSessionEmail();
+    if (!email) return false;
+    if (BUILT_IN_ADMINS.has(email)) return true;
+    const rule = currentAccessRule();
+    return String(rule && rule.role || "").toLowerCase() === "admin";
+  }
+
+  function currentAccessRule() {
+    const email = normalizedSessionEmail();
+    const rules = Array.isArray(data && data.adminControls && data.adminControls.users) ? data.adminControls.users : [];
+    return rules.find(rule => String(rule.email || "").toLowerCase() === email) || null;
+  }
+
+  function effectiveVisibility() {
+    if (isCurrentAdmin()) return defaultVisibilitySettings();
+    const fallback = normalizeVisibilitySettings(data && data.adminControls && data.adminControls.nonAdminVisibility, defaultVisibilitySettings());
+    const rule = currentAccessRule();
+    return normalizeVisibilitySettings(rule && rule.visibility, fallback);
   }
 
   function totals() {
@@ -1012,28 +1079,82 @@
     const entries = filteredHistoryEntries();
     const grouped = groupBy(entries, entry => entry.dateLabel || "-");
     const dateSelected = ui.historyFrom || ui.historyTo;
+    const visibility = effectiveVisibility();
+    const showPrintButton = visibility.historyPrintButtonVisible !== false;
+    const showDailySalesTotal = visibility.historyDailySalesTotalVisible !== false;
     return `
       <main class="page">
         ${blueHeader("History")}
         <section class="history-tools">
           <input class="field" data-history-search placeholder="Search customer, item or price" value="${esc(ui.historySearch)}">
-          <div class="date-row">
-            <input class="field" type="date" data-history-from value="${esc(ui.historyFrom)}">
-            <input class="field" type="date" data-history-to value="${esc(ui.historyTo)}">
-            <button class="print-button" ${dateSelected ? "" : "disabled"} data-action="print-history">${svg("print")}</button>
+          <div class="date-row ${showPrintButton ? "with-print" : "without-print"}">
+            ${historyDateBox("from", "From", "From date", ui.historyFrom, "", ui.historyTo || todayInputDate())}
+            ${historyDateBox("to", "To", "To date", ui.historyTo, ui.historyFrom, todayInputDate())}
+            ${showPrintButton ? `<button class="print-button" ${dateSelected ? "" : "disabled"} data-action="print-history">${svg("print")}</button>` : ""}
           </div>
         </section>
         ${Object.keys(grouped).length ? Object.entries(grouped).map(([date, rows]) => `
           <section class="card section history-date-card">
             <div class="section-title">
               <h2>${esc(historyTitleForDate(date))}</h2>
-              <h3>Total sales Amount = ${esc(money(rows.reduce((sum, entry) => sum + dashboardSales(entry), 0)))}</h3>
+              ${showDailySalesTotal ? `<h3>Total sales Amount = ${esc(money(rows.reduce((sum, entry) => sum + dashboardSales(entry), 0)))}</h3>` : ""}
             </div>
             <div class="history-entry-list">
               ${rows.map(entry => `<div class="history-entry-card">${entryRow(entry, "history")}</div>`).join("")}
             </div>
           </section>`).join("") : '<section class="card section empty">No entries found.</section>'}
       </main>`;
+  }
+
+  function historyDateBox(kind, label, placeholder, value, min, max) {
+    const text = value ? dateInputToLabel(value) : placeholder;
+    return `
+      <button class="history-date-box ${value ? "has-value" : ""}" type="button" data-history-date="${esc(kind)}" data-min-date="${esc(min)}" data-max-date="${esc(max)}">
+        <span class="history-date-icon">${svg("calendar")}</span>
+        <span class="history-date-copy">
+          <small>${esc(label)}</small>
+          <strong>${esc(text)}</strong>
+        </span>
+      </button>`;
+  }
+
+  function historyCalendarDialog() {
+    const target = ui.historyDatePicker;
+    if (target !== "from" && target !== "to") return "";
+    const selected = target === "from" ? ui.historyFrom : ui.historyTo;
+    const bounds = historyPickerBounds(target);
+    const month = normalizeMonthInput(ui.historyCalendarMonth || selected || bounds.max || todayInputDate());
+    const cells = calendarMonthCells(month);
+    const previousMonth = shiftMonthInput(month, -1);
+    const nextMonth = shiftMonthInput(month, 1);
+    const previousEnabled = monthHasAllowedDate(previousMonth, bounds);
+    const nextEnabled = monthHasAllowedDate(nextMonth, bounds);
+    const title = inputDateObject(month).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+    return `
+      <div class="overlay calendar-overlay" data-overlay-close="history-calendar">
+        <section class="calendar-dialog" data-sheet>
+          <div class="calendar-dialog-title">
+            <b>Select Date</b>
+            <button class="calendar-close" type="button" data-action="close-history-calendar">X</button>
+          </div>
+          <div class="calendar-month-bar">
+            <button class="calendar-nav" type="button" data-action="history-calendar-prev" ${previousEnabled ? "" : "disabled"}>${svg("chevron-left")}</button>
+            <span>${esc(title)}</span>
+            <button class="calendar-nav" type="button" data-action="history-calendar-next" ${nextEnabled ? "" : "disabled"}>${svg("chevron-right")}</button>
+          </div>
+          <div class="calendar-weekdays">
+            ${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => `<span>${day}</span>`).join("")}
+          </div>
+          <div class="calendar-grid">
+            ${cells.map(cell => {
+              const allowed = isDateAllowedForHistory(cell.input, bounds);
+              const selectedClass = selected === cell.input ? " selected" : "";
+              const outsideClass = cell.inMonth ? "" : " outside";
+              return `<button class="calendar-day${selectedClass}${outsideClass}" type="button" data-calendar-day="${esc(cell.input)}" ${allowed ? "" : "disabled"}>${cell.day}</button>`;
+            }).join("")}
+          </div>
+        </section>
+      </div>`;
   }
 
   function filteredHistoryEntries() {
@@ -1058,6 +1179,78 @@
       month: "short",
       year: "numeric"
     });
+  }
+
+  function todayInputDate() {
+    const date = new Date();
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+    return date.toISOString().slice(0, 10);
+  }
+
+  function inputDateObject(input) {
+    return new Date(`${input || todayInputDate()}T12:00:00`);
+  }
+
+  function inputDateFromObject(date) {
+    const copy = new Date(date.getTime());
+    copy.setMinutes(copy.getMinutes() - copy.getTimezoneOffset());
+    return copy.toISOString().slice(0, 10);
+  }
+
+  function normalizeMonthInput(input) {
+    const date = inputDateObject(input);
+    date.setDate(1);
+    return inputDateFromObject(date);
+  }
+
+  function shiftMonthInput(input, delta) {
+    const date = inputDateObject(normalizeMonthInput(input));
+    date.setMonth(date.getMonth() + delta, 1);
+    return inputDateFromObject(date);
+  }
+
+  function endOfMonthInput(input) {
+    const date = inputDateObject(normalizeMonthInput(input));
+    date.setMonth(date.getMonth() + 1, 0);
+    return inputDateFromObject(date);
+  }
+
+  function calendarMonthCells(monthInput) {
+    const monthStart = inputDateObject(normalizeMonthInput(monthInput));
+    const currentMonth = monthStart.getMonth();
+    const start = new Date(monthStart.getTime());
+    start.setDate(monthStart.getDate() - monthStart.getDay());
+    return Array.from({ length: 42 }, (_, index) => {
+      const date = new Date(start.getTime());
+      date.setDate(start.getDate() + index);
+      return {
+        input: inputDateFromObject(date),
+        day: date.getDate(),
+        inMonth: date.getMonth() === currentMonth
+      };
+    });
+  }
+
+  function historyPickerBounds(target) {
+    const today = todayInputDate();
+    const min = target === "to" ? ui.historyFrom : "";
+    let max = today;
+    if (target === "from" && ui.historyTo && ui.historyTo < max) max = ui.historyTo;
+    return { min, max };
+  }
+
+  function isDateAllowedForHistory(input, bounds) {
+    if (bounds.min && input < bounds.min) return false;
+    if (bounds.max && input > bounds.max) return false;
+    return true;
+  }
+
+  function monthHasAllowedDate(monthInput, bounds) {
+    const monthStart = normalizeMonthInput(monthInput);
+    const monthEnd = endOfMonthInput(monthStart);
+    if (bounds.min && monthEnd < bounds.min) return false;
+    if (bounds.max && monthStart > bounds.max) return false;
+    return true;
   }
 
   function groupBy(items, keyFn) {
@@ -1098,7 +1291,8 @@
       ui.addOpen ? addEntrySheet() : "",
       ui.advanceOpen ? advanceSheet() : "",
       ui.dueInvoice ? duePaymentSheet() : "",
-      ui.profileOpen ? profileSheet() : ""
+      ui.profileOpen ? profileSheet() : "",
+      ui.historyDatePicker ? historyCalendarDialog() : ""
     ].join("");
   }
 
@@ -1326,8 +1520,304 @@
   }
 
   function printMarkup() {
-    const entries = filteredHistoryEntries();
-    return `<div class="receipt-print"><h1>History</h1>${entries.map(entry => `<p><b>${esc(entry.dateLabel)}</b> ${esc(entry.customer)} ${esc(entry.invoiceNo)} ${esc(money(entry.amount))}</p>`).join("")}</div>`;
+    return "";
+  }
+
+  async function openHistoryPdf() {
+    if (!(ui.historyFrom || ui.historyTo)) return;
+    if (effectiveVisibility().historyPrintButtonVisible === false) return;
+    const pdfWindow = window.open("", "_blank");
+    if (pdfWindow) {
+      pdfWindow.document.write("<!doctype html><title>History PDF</title><body style=\"font-family:Arial,sans-serif;padding:24px\">Creating History PDF...</body>");
+      pdfWindow.document.close();
+    }
+    try {
+      const file = await createHistoryPdfFile();
+      openPdfBlob(file, pdfWindow);
+    } catch (error) {
+      if (pdfWindow && !pdfWindow.closed) pdfWindow.close();
+      ui.error = "Unable to create history PDF.";
+      scheduleRender();
+    }
+  }
+
+  async function createHistoryPdfFile() {
+    const blob = await createHistoryPdfBlob();
+    const name = `${cleanFilePart(historyPdfTitle(ui.historyFrom, ui.historyTo)).replace(/^_+|_+$/g, "") || "History"}.pdf`;
+    return new File([blob], name, { type: "application/pdf" });
+  }
+
+  async function createHistoryPdfBlob() {
+    const scale = 2;
+    const pageWidth = RECEIPT_PAGE_WIDTH;
+    const pageHeight = RECEIPT_PAGE_HEIGHT;
+    const margin = 24;
+    const contentWidth = pageWidth - (margin * 2);
+    const bottomLimit = pageHeight - 28;
+    const groupedEntries = Object.entries(groupBy(filteredHistoryEntries(), entry => entry.dateLabel || "-"));
+    const showDailySalesTotal = effectiveVisibility().historyDailySalesTotalVisible !== false;
+    const canvases = [];
+    let canvas = null;
+    let ctx = null;
+    let y = 92;
+
+    const newPage = () => {
+      canvas = document.createElement("canvas");
+      canvas.width = pageWidth * scale;
+      canvas.height = pageHeight * scale;
+      ctx = canvas.getContext("2d", { alpha: false });
+      ctx.scale(scale, scale);
+      drawHistoryPageChrome(ctx, historyPdfRangeText(ui.historyFrom, ui.historyTo));
+      canvases.push(canvas);
+      y = 96;
+    };
+    const ensureSpace = height => {
+      if (y + height > bottomLimit && y > 100) newPage();
+    };
+
+    newPage();
+    if (!groupedEntries.length) {
+      ensureSpace(74);
+      drawHistoryRound(ctx, margin, y, pageWidth - margin, y + 58, 8, "#fff", "#e7ebf2");
+      drawFit(ctx, "No entries found for the selected date range.", margin + 14, pageWidth - margin - 14, y + 33, 9.5, true);
+    } else {
+      groupedEntries.forEach(([dateLabel, dateEntries]) => {
+        let index = 0;
+        while (index < dateEntries.length) {
+          const headerHeight = showDailySalesTotal ? 51 : 36;
+          if (y + headerHeight + historyEntryHeight(dateEntries[index]) + 24 > bottomLimit) newPage();
+          const availableHeight = bottomLimit - y;
+          let chunkHeight = 17 + headerHeight + 14;
+          let endIndex = index;
+          while (endIndex < dateEntries.length) {
+            const nextHeight = historyEntryHeight(dateEntries[endIndex]) + (endIndex === index ? 0 : 9);
+            if (chunkHeight + nextHeight <= availableHeight || endIndex === index) {
+              chunkHeight += nextHeight;
+              endIndex += 1;
+            } else {
+              break;
+            }
+          }
+          drawHistoryDateGroup(ctx, dateLabel, dateEntries, index, endIndex, y, chunkHeight, showDailySalesTotal, margin, contentWidth);
+          y += chunkHeight + 10;
+          index = endIndex;
+          if (index < dateEntries.length) newPage();
+        }
+      });
+    }
+
+    const pages = canvases.map(item => ({
+      imageBytes: dataUrlToBytes(item.toDataURL("image/jpeg", 0.94)),
+      imageWidth: item.width,
+      imageHeight: item.height
+    }));
+    return buildImagePagesPdf(pages);
+  }
+
+  function historyPdfTitle(fromDate, toDate) {
+    const rangeText = historyPdfRangeText(fromDate, toDate);
+    return rangeText ? `History - ${rangeText}` : "History";
+  }
+
+  function historyPdfRangeText(fromDate, toDate) {
+    if (fromDate && toDate) return `${dateInputToLabel(fromDate)} to ${dateInputToLabel(toDate)}`;
+    if (fromDate) return `From ${dateInputToLabel(fromDate)}`;
+    if (toDate) return `Up to ${dateInputToLabel(toDate)}`;
+    return "";
+  }
+
+  function drawHistoryPageChrome(ctx, rangeText) {
+    ctx.fillStyle = "#f5f7fb";
+    ctx.fillRect(0, 0, RECEIPT_PAGE_WIDTH, RECEIPT_PAGE_HEIGHT);
+    ctx.fillStyle = "#0d5bdd";
+    ctx.fillRect(0, 0, RECEIPT_PAGE_WIDTH, 62);
+    drawFit(ctx, "History", 0, RECEIPT_PAGE_WIDTH, 39, 16, true, "center", "#fff");
+    drawHistoryRound(ctx, 24, 72, RECEIPT_PAGE_WIDTH - 24, 88, 6, "#fff", "#e7ebf2");
+    drawFit(ctx, rangeText || "History", 34, RECEIPT_PAGE_WIDTH - 34, 83, 8, false, "left", "#6b7280");
+  }
+
+  function drawHistoryDateGroup(ctx, dateLabel, entries, startIndex, endIndexExclusive, top, height, showDailySalesTotal, margin, contentWidth) {
+    drawHistoryRound(ctx, margin, top, RECEIPT_PAGE_WIDTH - margin, top + height, 8, "#fff", "#e7ebf2");
+    let currentY = top + 17;
+    drawFit(ctx, historyTitleForDate(dateLabel), margin + 14, RECEIPT_PAGE_WIDTH - margin - 14, currentY, 13, true);
+    currentY += 16;
+    if (showDailySalesTotal) {
+      drawFit(ctx, `Total sales Amount = ${money(entries.reduce((sum, entry) => sum + dashboardSales(entry), 0))}`, margin + 14, RECEIPT_PAGE_WIDTH - margin - 14, currentY, 9.5, true, "left", "#064bc0");
+      currentY += 15;
+    }
+    currentY += 3;
+    entries.slice(startIndex, endIndexExclusive).forEach(entry => {
+      currentY += drawHistoryEntryCard(ctx, entry, margin + 14, currentY, contentWidth - 28) + 9;
+    });
+  }
+
+  function historyEntryHeight(entry) {
+    const itemHeight = historyItemSnapshots(entry).length * 44;
+    const paymentRowsHeight = historyPaymentRows(entry).length * 20;
+    const historyHeight = entryDetailSummary(entry).historyItems.length ? 17 + (entryDetailSummary(entry).historyItems.length * 38) : 0;
+    return 54 + 8 + 34 + 20 + itemHeight + 18 + 82 + paymentRowsHeight + historyHeight + 30;
+  }
+
+  function historyItemSnapshots(entry) {
+    if (entry.saleItems && entry.saleItems.length) return entry.saleItems;
+    const fallbackAmount = entry.kind === "Sale"
+      ? purchaseDisplayAmount(entry)
+      : Number(entry.purchasedAmount || entry.dueSnapshotTotal || entry.amount || 0);
+    return [{
+      product: entry.itemName || entry.subtitle || "Sale Item",
+      quantity: "",
+      rate: "",
+      amount: fallbackAmount
+    }];
+  }
+
+  function historyPaymentRows(entry) {
+    const summary = entryDetailSummary(entry);
+    return [
+      ...summary.adjustments,
+      { label: "Total Amount", value: summary.totalAmount, bold: true },
+      ...(summary.showPaidDue ? [
+        { label: "Paid Amount", value: summary.paidAmount },
+        { label: "Due Payment", value: summary.dueAmount }
+      ] : [])
+    ];
+  }
+
+  function drawHistoryEntryCard(ctx, entry, left, top, width) {
+    const height = historyEntryHeight(entry);
+    const summary = entryDetailSummary(entry);
+    const innerLeft = left + 12;
+    const innerWidth = width - 24;
+    let currentY = top + 13;
+    drawHistoryRound(ctx, left, top, left + width, top + height, 7, "#fff", "#e7ebf2");
+
+    drawHistoryRound(ctx, innerLeft, currentY, innerLeft + 28, currentY + 28, 7, "#dbeafe", "#dbeafe");
+    drawFit(ctx, "||", innerLeft + 5, innerLeft + 23, currentY + 19, 11, true, "center", "#0d5bdd");
+    drawFit(ctx, entry.customer || "Walk-in Customer", innerLeft + 38, innerLeft + innerWidth - 90, currentY + 10, 9.5, true);
+    drawFit(ctx, entry.itemName || entry.subtitle || entry.kind || "Sale", innerLeft + 38, innerLeft + innerWidth - 90, currentY + 22, 8, false, "left", "#6b7280");
+    const due = saleDue(entry);
+    const mainAmount = entry.kind === "Sale" ? Number(entry.amount || 0) : Number(entry.amount || entry.paidAmount || 0);
+    drawFit(ctx, money(mainAmount), innerLeft + innerWidth - 94, innerLeft + innerWidth, currentY + 11, 9.5, true, "right", entry.kind === "Expense" ? "#ef4444" : "#10b981");
+    if (due > 0) {
+      drawFit(ctx, `- ${money(due)}`, innerLeft + innerWidth - 94, innerLeft + innerWidth, currentY + 23, 8, true, "right", "#ef4444");
+    } else {
+      drawFit(ctx, entry.timeLabel || entry.invoiceNo || "", innerLeft + innerWidth - 94, innerLeft + innerWidth, currentY + 23, 8, false, "right", "#6b7280");
+    }
+    currentY += 40;
+
+    const detailTop = currentY;
+    drawHistoryRound(ctx, innerLeft, detailTop, innerLeft + innerWidth, detailTop + height - 66, 6, "#fff", "#e7ebf2");
+    currentY += 14;
+    drawFit(ctx, `SALE NUMBER : ${summary.saleNumber || "-"}`, innerLeft + 10, innerLeft + innerWidth - 10, currentY, 7.5, true);
+    currentY += 12;
+    drawFit(ctx, `MOBILE NUMBER : ${entry.mobileNumber || "-"}`, innerLeft + 10, innerLeft + innerWidth - 10, currentY, 7.5, true);
+    currentY += 18;
+    drawFit(ctx, "ITEM PURCHASED:", innerLeft + 10, innerLeft + innerWidth - 10, currentY, 7.5, true);
+    currentY += 8;
+    historyItemSnapshots(entry).forEach((item, index) => {
+      currentY += drawHistoryItemBlock(ctx, index, item, innerLeft + 10, currentY, innerWidth - 20) + 7;
+    });
+    currentY += 2;
+    drawHistoryPaymentDetails(ctx, entry, summary, innerLeft + 10, currentY, innerWidth - 20);
+    return height;
+  }
+
+  function drawHistoryItemBlock(ctx, index, item, left, top, width) {
+    drawHistoryRound(ctx, left, top, left + width, top + 38, 6, "#fff", "#e7ebf2");
+    drawFit(ctx, `${index + 1}. ${String(item.product || "Sale Item").toUpperCase()}`, left + 9, left + width - 9, top + 13, 9.5, true);
+    const gap = 6;
+    const boxTop = top + 19;
+    const boxWidth = (width - 18 - (gap * 2)) / 3;
+    drawHistoryMiniAmountRow(ctx, "Qty.", item.quantity || "-", left + 9, boxTop, boxWidth);
+    drawHistoryMiniAmountRow(ctx, "Rate", item.rate || "-", left + 9 + boxWidth + gap, boxTop, boxWidth);
+    drawHistoryMiniAmountRow(ctx, "Amount", numberText(item.amount), left + 9 + ((boxWidth + gap) * 2), boxTop, boxWidth);
+    return 38;
+  }
+
+  function drawHistoryPaymentDetails(ctx, entry, summary, left, top, width) {
+    let currentY = top;
+    drawFit(ctx, "PAYMENT DETAILS:", left, left + width, currentY + 11, 7.5, true);
+    currentY += 17;
+    const boxTop = currentY;
+    drawHistoryRound(ctx, left, boxTop, left + width, boxTop + 10, 7, "#fff", "#e7ebf2");
+    currentY += 10;
+    historyPaymentRows(entry).forEach((row, index) => {
+      if (index > 0) currentY += 4;
+      drawHistoryMiniAmountRow(ctx, row.label, numberText(row.value), left + 10, currentY, width - 20, row.bold);
+      currentY += 16;
+    });
+    currentY += 8;
+    const cardGap = 10;
+    const cardWidth = (width - 20 - cardGap) / 2;
+    drawHistoryPaymentCard(ctx, "Cash", summary.cashPaid, summary.cashAccount, left + 10, currentY, cardWidth);
+    drawHistoryPaymentCard(ctx, "Online", summary.onlinePaid, summary.onlineAccount, left + 10 + cardWidth + cardGap, currentY, cardWidth);
+    currentY += 74;
+
+    if (summary.historyItems.length) {
+      drawFit(ctx, "HISTORY:", left + 10, left + width - 10, currentY + 10, 7.5, true);
+      currentY += 17;
+      let runningPaid = summary.historyStartPaid;
+      summary.historyItems.forEach((item, index) => {
+        runningPaid = Math.min(summary.totalAmount, runningPaid + Number(item.amount || 0));
+        const due = Math.max(0, summary.totalAmount - runningPaid);
+        drawHistoryRound(ctx, left + 10, currentY, left + width - 10, currentY + 32, 5, "#f7faff", "#e7ebf2");
+        drawFit(ctx, `${index + 1}. ${item.dateTime || "-"}`, left + 18, left + width - 18, currentY + 11, 8, false, "left", "#6b7280");
+        drawFit(ctx, `Paid ${money(item.amount)}   Due ${money(due)}`, left + 18, left + width - 18, currentY + 24, 9.5, true);
+        currentY += 37;
+      });
+    }
+    drawHistoryStrokeRound(ctx, left, boxTop, left + width, currentY + 8, 7, "#e7ebf2");
+  }
+
+  function drawHistoryMiniAmountRow(ctx, label, value, left, top, width, bold = false) {
+    const labelRight = left + (width * 0.52);
+    drawHistoryRound(ctx, left, top, left + width, top + 16, 4, "#fff", "#e7ebf2");
+    drawHistoryLine(ctx, labelRight, top, labelRight, top + 16, "#e7ebf2");
+    drawFit(ctx, String(label || "").toUpperCase(), left + 8, labelRight - 5, top + 11, 7.5, true, "center");
+    drawFit(ctx, value || "-", labelRight + 6, left + width - 8, top + 11, bold ? 9.5 : 8.8, bold, "center");
+  }
+
+  function drawHistoryPaymentCard(ctx, title, amount, account, left, top, width) {
+    const active = Number(amount || 0) > 0;
+    drawHistoryRound(ctx, left, top, left + width, top + 66, 7, active ? "#e2f8e9" : "#f0f3f8", active ? "#36c46b" : "#e7ebf2");
+    drawFit(ctx, title, left + 9, left + width - 9, top + 15, 10, true, "left", active ? "#25a955" : "#6b7280");
+    drawHistoryRound(ctx, left + 8, top + 24, left + width - 8, top + 43, 5, "#fff", "#e7ebf2");
+    drawFit(ctx, numberText(amount), left + 12, left + width - 12, top + 38, 11.5, true, "center");
+    if (active) {
+      drawFit(ctx, "ACCOUNT", left + 8, left + width - 8, top + 53, 7.5, true, "center");
+      drawFit(ctx, String(account || "Indian Steel").toUpperCase(), left + 8, left + width - 8, top + 63, 7.5, true, "center");
+    }
+  }
+
+  function drawHistoryRound(ctx, left, top, right, bottom, radius, fillColor, strokeColor = "#e7ebf2", lineWidth = 1) {
+    ctx.save();
+    roundedPath(ctx, left, top, right - left, bottom - top, radius);
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = lineWidth;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawHistoryStrokeRound(ctx, left, top, right, bottom, radius, strokeColor = "#e7ebf2") {
+    ctx.save();
+    roundedPath(ctx, left, top, right - left, bottom - top, radius);
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawHistoryLine(ctx, x1, y1, x2, y2, color = "#e7ebf2") {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   function purchasedAmount(draft) {
@@ -1526,18 +2016,8 @@
       ui.historyOpen = "";
       scheduleRender();
     });
-    const historyFrom = document.querySelector("[data-history-from]");
-    if (historyFrom) historyFrom.addEventListener("input", () => {
-      ui.historyFrom = historyFrom.value;
-      ui.historyOpen = "";
-      scheduleRender();
-    });
-    const historyTo = document.querySelector("[data-history-to]");
-    if (historyTo) historyTo.addEventListener("input", () => {
-      ui.historyTo = historyTo.value;
-      ui.historyOpen = "";
-      scheduleRender();
-    });
+    document.querySelectorAll("[data-history-date]").forEach(el => el.addEventListener("click", () => openHistoryDatePicker(el.dataset.historyDate)));
+    document.querySelectorAll("[data-calendar-day]").forEach(el => el.addEventListener("click", () => selectHistoryDate(el.dataset.calendarDay)));
   }
 
   function toggleEntryDropdown(key, source) {
@@ -1548,6 +2028,42 @@
     } else {
       ui.recentOpen = ui.recentOpen === key ? "" : key;
       ui.historyOpen = "";
+    }
+  }
+
+  function openHistoryDatePicker(target) {
+    if (target !== "from" && target !== "to") return;
+    const selected = target === "from" ? ui.historyFrom : ui.historyTo;
+    const bounds = historyPickerBounds(target);
+    ui.historyDatePicker = target;
+    ui.historyCalendarMonth = normalizeMonthInput(selected || bounds.max || todayInputDate());
+    ui.historyOpen = "";
+    scheduleRender();
+  }
+
+  function selectHistoryDate(value) {
+    if (!value || !ui.historyDatePicker) return;
+    const target = ui.historyDatePicker;
+    if (!isDateAllowedForHistory(value, historyPickerBounds(target))) return;
+    if (target === "from") {
+      ui.historyFrom = value;
+      if (ui.historyTo && ui.historyTo < value) ui.historyTo = value;
+    } else {
+      ui.historyTo = value;
+      if (ui.historyFrom && ui.historyFrom > value) ui.historyFrom = value;
+    }
+    ui.historyDatePicker = "";
+    ui.historyCalendarMonth = "";
+    ui.historyOpen = "";
+    scheduleRender();
+  }
+
+  function shiftHistoryCalendar(delta) {
+    if (!ui.historyDatePicker) return;
+    const bounds = historyPickerBounds(ui.historyDatePicker);
+    const nextMonth = shiftMonthInput(ui.historyCalendarMonth || todayInputDate(), delta);
+    if (monthHasAllowedDate(nextMonth, bounds)) {
+      ui.historyCalendarMonth = nextMonth;
     }
   }
 
@@ -1586,6 +2102,9 @@
     if (action === "save-advance") saveAdvance();
     if (action === "close-due") closeOverlay("due");
     if (action === "save-due") saveDuePayment();
+    if (action === "close-history-calendar") closeOverlay("history-calendar");
+    if (action === "history-calendar-prev") shiftHistoryCalendar(-1);
+    if (action === "history-calendar-next") shiftHistoryCalendar(1);
     if (action === "sync-now") void syncNow({ manual: true });
     if (action === "logout") {
       session = {};
@@ -1594,7 +2113,7 @@
       persistSession();
     }
     if (action === "add-stock") addStock();
-    if (action === "print-history") window.print();
+    if (action === "print-history") void openHistoryPdf();
     scheduleRender();
   }
 
@@ -1603,6 +2122,10 @@
     if (name === "advance") ui.advanceOpen = false;
     if (name === "due") ui.dueInvoice = "";
     if (name === "profile") ui.profileOpen = false;
+    if (name === "history-calendar") {
+      ui.historyDatePicker = "";
+      ui.historyCalendarMonth = "";
+    }
     ui.error = "";
     scheduleRender();
   }
@@ -1835,9 +2358,12 @@
     });
   }
 
-  function openPdfBlob(blob) {
+  function openPdfBlob(blob, targetWindow = null) {
     const url = URL.createObjectURL(blob);
-    const opened = window.open(url, "_blank", "noopener");
+    const opened = targetWindow && !targetWindow.closed ? targetWindow : window.open(url, "_blank", "noopener");
+    if (targetWindow && !targetWindow.closed) {
+      targetWindow.location.href = url;
+    }
     if (!opened) {
       const link = document.createElement("a");
       link.href = url;
@@ -2321,6 +2847,59 @@
       writeObject(annotationStart + index, `<< /Type /Annot /Subtype /Link /Rect [${left} ${bottom} ${right} ${top}] /Border [0 0 0] /A << /S /URI /URI (${pdfString(annotation.uri)}) >> >>`);
     });
     const objectCount = annotationStart + annotations.length - 1;
+    const xrefOffset = length;
+    pushText(`xref\n0 ${objectCount + 1}\n0000000000 65535 f \n`);
+    for (let index = 1; index <= objectCount; index += 1) {
+      pushText(`${String(offsets[index]).padStart(10, "0")} 00000 n \n`);
+    }
+    pushText(`trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+    const pdfBytes = new Uint8Array(length);
+    let offset = 0;
+    chunks.forEach(chunk => {
+      pdfBytes.set(chunk, offset);
+      offset += chunk.length;
+    });
+    return new Blob([pdfBytes], { type: "application/pdf" });
+  }
+
+  function buildImagePagesPdf(pages) {
+    const encoder = new TextEncoder();
+    const chunks = [];
+    const offsets = [];
+    let length = 0;
+    const safePages = pages.length ? pages : [];
+    const pushBytes = bytes => {
+      chunks.push(bytes);
+      length += bytes.length;
+    };
+    const pushText = text => pushBytes(encoder.encode(text));
+    const writeObject = (number, parts) => {
+      offsets[number] = length;
+      pushText(`${number} 0 obj\n`);
+      (Array.isArray(parts) ? parts : [parts]).forEach(part => typeof part === "string" ? pushText(part) : pushBytes(part));
+      pushText("\nendobj\n");
+    };
+    const pageObjectNumber = index => 3 + (index * 3);
+    const imageObjectNumber = index => 4 + (index * 3);
+    const contentObjectNumber = index => 5 + (index * 3);
+    const kids = safePages.map((_, index) => `${pageObjectNumber(index)} 0 R`).join(" ");
+    pushText("%PDF-1.4\n%\u00ff\u00ff\u00ff\u00ff\n");
+    writeObject(1, "<< /Type /Catalog /Pages 2 0 R >>");
+    writeObject(2, `<< /Type /Pages /Kids [${kids}] /Count ${safePages.length} >>`);
+    safePages.forEach((page, index) => {
+      const pageObject = pageObjectNumber(index);
+      const imageObject = imageObjectNumber(index);
+      const contentObject = contentObjectNumber(index);
+      writeObject(pageObject, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${RECEIPT_PAGE_WIDTH} ${RECEIPT_PAGE_HEIGHT}] /Resources << /XObject << /Im${index} ${imageObject} 0 R >> >> /Contents ${contentObject} 0 R >>`);
+      writeObject(imageObject, [
+        `<< /Type /XObject /Subtype /Image /Width ${page.imageWidth} /Height ${page.imageHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${page.imageBytes.length} >>\nstream\n`,
+        page.imageBytes,
+        "\nendstream"
+      ]);
+      const content = `q\n${RECEIPT_PAGE_WIDTH} 0 0 ${RECEIPT_PAGE_HEIGHT} 0 0 cm\n/Im${index} Do\nQ`;
+      writeObject(contentObject, `<< /Length ${encoder.encode(content).length} >>\nstream\n${content}\nendstream`);
+    });
+    const objectCount = 2 + (safePages.length * 3);
     const xrefOffset = length;
     pushText(`xref\n0 ${objectCount + 1}\n0000000000 65535 f \n`);
     for (let index = 1; index <= objectCount; index += 1) {
