@@ -761,8 +761,9 @@ select {
 }
 
 .entry-detail .whatsapp-action {
-  border-color: rgba(34, 197, 94, .45);
-  background: #ecfdf5;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
 }
 
 .entry-detail .whatsapp-icon {
