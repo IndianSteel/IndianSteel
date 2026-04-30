@@ -73,6 +73,7 @@
   const icons = {
     menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
     bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/>',
+    calendar: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/>',
     home: '<path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
     card: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
@@ -83,6 +84,7 @@
     edit: '<path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4z"/><path d="m13 6 5 5"/>',
     close: '<path d="M6 6l12 12M18 6 6 18"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    history: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 5v6h6"/><path d="M12 7v5l3 2"/>',
     sync: '<path d="M20 7h-6a6 6 0 0 0-10 3"/><path d="m20 7-3-3"/><path d="M4 17h6a6 6 0 0 0 10-3"/><path d="m4 17 3 3"/>',
     print: '<path d="M7 8V4h10v4"/><path d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M7 14h10v6H7z"/>',
     wallet: '<path d="M4 7h16v12H4z"/><path d="M16 12h4v4h-4z"/><path d="M4 7l3-3h10l3 3"/>',
@@ -573,33 +575,35 @@
 
   function dashboardScreen() {
     const t = totals();
-    const recent = data.entries.slice().sort((a, b) => entryRank(b) - entryRank(a)).slice(0, 8);
+    const recent = data.entries.slice().sort((a, b) => entryRank(b) - entryRank(a)).slice(0, 6);
     const weekly = weeklySales();
     const trend = dashboardTrend(t.todaySales);
     return `
-      <main class="page">
-        <section class="hero">
-          <div class="hero-top">
-            <button class="icon-button" data-action="profile" aria-label="Profile">${svg("menu")}</button>
-            <div class="hero-title">Dashboard</div>
-            <button class="icon-button" data-screen="history" aria-label="History">${svg("bell")}</button>
-          </div>
-          <h2>${esc(greeting())}, ${esc(dashboardUserName())} 👋</h2>
-          <p>Here's what's happening today.</p>
-        </section>
-        <section class="card summary-main dashboard-summary">
-          <div class="section-title">
-            <h2>Today's Summary</h2>
-            <span class="muted">${esc(nowDate())}</span>
-          </div>
-          <span class="summary-label">Total Sales</span>
-          <div class="summary-amount-row">
-            <div class="amount-xl">${esc(money(t.todaySales))}.00</div>
-            <div class="trend-pill ${trend.value >= 0 ? "up" : "down"}">
-              <b>${trend.value >= 0 ? "↑" : "↓"} ${Math.abs(trend.value).toFixed(1)}%</b>
-              <span>vs Yesterday</span>
+      <main class="page dashboard-page">
+        <section class="dashboard-hero-stack">
+          <section class="hero">
+            <div class="hero-top">
+              <button class="icon-button" data-action="profile" aria-label="Profile">${svg("menu")}</button>
+              <div class="hero-title">Dashboard</div>
+              <button class="icon-button" data-screen="history" aria-label="History">${svg("bell")}</button>
             </div>
-          </div>
+            <h2>${esc(greeting())}, ${esc(dashboardUserName())} &#128075;</h2>
+            <p>Here's what's happening today.</p>
+          </section>
+          <section class="card summary-main dashboard-summary">
+            <div class="section-title">
+              <h2>Today's Summary</h2>
+              <span class="summary-date">${svg("calendar")}<span>${esc(nowDate())}</span></span>
+            </div>
+            <span class="summary-label">Total Sales</span>
+            <div class="summary-amount-row">
+              <div class="amount-xl">${esc(money(t.todaySales))}.00</div>
+              <div class="trend-stack ${trend.direction > 0 ? "up" : trend.direction < 0 ? "down" : "flat"}">
+                <b>${trend.direction > 0 ? "&uarr; " : trend.direction < 0 ? "&darr; " : ""}${Math.abs(trend.value).toFixed(1)}%</b>
+                <span>vs Yesterday</span>
+              </div>
+            </div>
+          </section>
         </section>
         <section class="grid-3 dashboard-stats">
           ${statCard("Monthly Sales", money(t.monthlySales), "wallet", "green", 'data-screen="reports" data-report="Monthly"')}
@@ -611,7 +615,7 @@
           ${dashboardChart(weekly)}
         </section>
         <section class="card section dashboard-section recent-section">
-          <div class="section-title"><h2>Recent Entries</h2><button class="link-button" data-screen="history">${svg("sync")}</button></div>
+          <div class="section-title"><h2>Recent Entries</h2><button class="link-button history-icon-button" data-screen="history" aria-label="Open history">${svg("history")}</button></div>
           ${recent.length ? recent.map((entry, index) => dashboardEntryRow(entry) + (index < recent.length - 1 ? '<div class="divider"></div>' : "")).join("") : '<div class="empty">No entries yet.</div>'}
         </section>
       </main>`;
@@ -630,9 +634,10 @@
     const yesterdaySales = data.entries
       .filter(entry => entry.dateLabel === label)
       .reduce((sum, entry) => sum + dashboardSales(entry), 0);
-    if (yesterdaySales <= 0 && todaySales <= 0) return { value: 0 };
-    if (yesterdaySales <= 0) return { value: 100 };
-    return { value: ((todaySales - yesterdaySales) / yesterdaySales) * 100 };
+    const direction = todaySales > yesterdaySales ? 1 : todaySales < yesterdaySales ? -1 : 0;
+    if (yesterdaySales <= 0 && todaySales <= 0) return { value: 0, direction };
+    if (yesterdaySales <= 0) return { value: 100, direction };
+    return { value: ((todaySales - yesterdaySales) / yesterdaySales) * 100, direction };
   }
 
   function dashboardChart(items) {
@@ -640,40 +645,60 @@
     const height = 132;
     const left = 28;
     const right = 8;
-    const top = 8;
-    const bottom = 24;
+    const top = 0;
+    const bottom = 22;
     const chartHeight = height - top - bottom;
     const chartWidth = width - left - right;
-    const max = Math.max(1, ...items.map(item => Number(item.value || 0)));
+    const axisStep = salesChartStep(items.map(item => Number(item.value || 0)));
+    const chartMax = axisStep * 3;
+    const axisValues = [chartMax, axisStep * 2, axisStep, 0];
     const points = items.map((item, index) => {
       const x = left + (items.length <= 1 ? chartWidth : (chartWidth / (items.length - 1)) * index);
-      const y = top + chartHeight - (Number(item.value || 0) / max) * chartHeight;
+      const y = top + chartHeight - (Number(item.value || 0) / Math.max(1, chartMax)) * chartHeight;
       return { ...item, x, y };
     });
-    const path = points.map((point, index) => `${index ? "L" : "M"}${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ");
-    const area = `${path} L${points[points.length - 1].x.toFixed(1)} ${top + chartHeight} L${left} ${top + chartHeight} Z`;
+    const path = curvedSvgPath(points);
+    const area = `M${points[0].x.toFixed(1)} ${top + chartHeight} L${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)} ${curvedSvgSegments(points)} L${points[points.length - 1].x.toFixed(1)} ${top + chartHeight} Z`;
     return `
       <div class="dashboard-chart">
         <svg viewBox="0 0 ${width} ${height}" aria-label="Sales overview chart" role="img">
-          <line class="chart-grid" x1="${left}" y1="${top}" x2="${width - right}" y2="${top}"></line>
-          <line class="chart-grid" x1="${left}" y1="${top + chartHeight / 2}" x2="${width - right}" y2="${top + chartHeight / 2}"></line>
-          <line class="chart-grid" x1="${left}" y1="${top + chartHeight}" x2="${width - right}" y2="${top + chartHeight}"></line>
-          <text class="chart-y" x="0" y="${top + 4}">${esc(compactAmount(max))}</text>
-          <text class="chart-y" x="0" y="${top + chartHeight / 2 + 4}">${esc(compactAmount(max / 2))}</text>
-          <text class="chart-y" x="0" y="${top + chartHeight + 4}">0</text>
+          ${axisValues.map((value, index) => {
+            const y = top + (chartHeight / 3) * index;
+            return `<line class="chart-grid" x1="${left}" y1="${y.toFixed(1)}" x2="${width - right}" y2="${y.toFixed(1)}"></line><text class="chart-y" x="0" y="${(y + 4).toFixed(1)}">${esc(compactChartAxisValue(value))}</text>`;
+          }).join("")}
           <path class="chart-area" d="${area}"></path>
           <path class="chart-line" d="${path}"></path>
-          ${points.map(point => `<circle class="chart-dot" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="2.4"></circle>`).join("")}
+          ${points.map(point => `<circle class="chart-dot-halo" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="3.5"></circle><circle class="chart-dot" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="2"></circle>`).join("")}
           ${points.map(point => `<text class="chart-x" x="${point.x.toFixed(1)}" y="${height - 5}">${esc(point.shortLabel)}</text>`).join("")}
         </svg>
       </div>`;
   }
 
-  function compactAmount(value) {
-    const amount = Number(value || 0);
-    if (amount >= 100000) return `${Math.round(amount / 100000)}L`;
-    if (amount >= 1000) return `${Math.round(amount / 1000)}K`;
-    return String(Math.round(amount));
+  function curvedSvgPath(points) {
+    return `M${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)} ${curvedSvgSegments(points)}`;
+  }
+
+  function curvedSvgSegments(points) {
+    return points.slice(0, -1).map((start, index) => {
+      const end = points[index + 1];
+      const midX = (start.x + end.x) / 2;
+      return `C${midX.toFixed(1)} ${start.y.toFixed(1)} ${midX.toFixed(1)} ${end.y.toFixed(1)} ${end.x.toFixed(1)} ${end.y.toFixed(1)}`;
+    }).join(" ");
+  }
+
+  function salesChartStep(values) {
+    const maxValue = Math.max(0, ...values);
+    const rawStep = Math.max(maxValue / 3, 1000);
+    const candidates = [1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000];
+    return candidates.find(value => value >= rawStep) || Math.ceil(rawStep / 1000000) * 1000000;
+  }
+
+  function compactChartAxisValue(value) {
+    const amount = Math.round(Number(value || 0));
+    if (amount <= 0) return "0";
+    if (amount >= 100000 && amount % 100000 === 0) return `${String(amount / 100000).padStart(2, "0")}L`;
+    if (amount >= 1000 && amount % 1000 === 0) return `${String(amount / 1000).padStart(2, "0")}K`;
+    return String(amount);
   }
 
   function syncBadge() {
@@ -710,15 +735,15 @@
       : `<span class="money">${esc(money(entry.amount || entry.paidAmount))}</span>`;
     const key = entry.id;
     const open = ui.recentOpen === key;
+    const dateCaption = entry.timeLabel ? `${esc(entry.dateLabel)},<br>${esc(entry.timeLabel)}` : esc(entry.dateLabel);
     return `
       <div class="dashboard-entry-row" data-toggle-entry="${esc(key)}" data-source="recent">
         <span class="tile blue">${svg(entry.kind === "Payment" ? "card" : "chart")}</span>
         <span class="row-main">
           <b>${esc(entry.customer || "Walk-in Customer")}</b>
-          <span>${esc(entry.itemName || entry.subtitle || entry.kind)}</span>
-          <span>${esc(entry.subtitle || entry.invoiceNo)}</span>
+          <span>${esc(entry.subtitle || entry.kind || entry.invoiceNo)}</span>
         </span>
-        <span class="dashboard-entry-meta">${amount}<small>${esc(entry.dateLabel)}<br>${esc(entry.timeLabel)}</small></span>
+        <span class="dashboard-entry-meta">${amount}<small>${dateCaption}</small></span>
         <button class="mini-action danger" data-delete-entry="${esc(entry.id)}" aria-label="Delete">${svg("delete")}</button>
       </div>
       ${open ? entryDetail(entry) : ""}`;
