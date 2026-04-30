@@ -93,7 +93,7 @@
     edit: '<path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4z"/><path d="m13 6 5 5"/>',
     close: '<path d="M6 6l12 12M18 6 6 18"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
-    history: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 5v6h6"/><path d="M12 7v5l3 2"/>',
+    history: '<path fill="currentColor" stroke="none" d="M13 3a9 9 0 0 0-9 9H1l4 4 4-4H6a7 7 0 1 1 2.05 4.95l-1.42 1.42A9 9 0 1 0 13 3Zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12Z"/>',
     sync: '<path d="M20 7h-6a6 6 0 0 0-10 3"/><path d="m20 7-3-3"/><path d="M4 17h6a6 6 0 0 0 10-3"/><path d="m4 17 3 3"/>',
     print: '<path d="M7 8V4h10v4"/><path d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M7 14h10v6H7z"/>',
     wallet: '<path d="M4 7h16v12H4z"/><path d="M16 12h4v4h-4z"/><path d="M4 7l3-3h10l3 3"/>',
@@ -1024,15 +1024,13 @@
           </div>
         </section>
         ${Object.keys(grouped).length ? Object.entries(grouped).map(([date, rows]) => `
-          <section class="history-date-group">
-            <div class="card section history-date-card">
-              <div class="section-title">
-                <h2>${esc(date)}</h2>
-                <h3>Total sales Amount = ${esc(money(rows.reduce((sum, entry) => sum + dashboardSales(entry), 0)))}</h3>
-              </div>
+          <section class="card section history-date-card">
+            <div class="section-title">
+              <h2>${esc(historyTitleForDate(date))}</h2>
+              <h3>Total sales Amount = ${esc(money(rows.reduce((sum, entry) => sum + dashboardSales(entry), 0)))}</h3>
             </div>
             <div class="history-entry-list">
-              ${rows.map(entry => `<section class="card history-entry-card">${entryRow(entry, "history")}</section>`).join("")}
+              ${rows.map(entry => `<div class="history-entry-card">${entryRow(entry, "history")}</div>`).join("")}
             </div>
           </section>`).join("") : '<section class="card section empty">No entries found.</section>'}
       </main>`;
@@ -1049,6 +1047,17 @@
         return (!query || text.includes(query)) && rank >= from && rank <= to;
       })
       .sort((a, b) => entryRank(b) - entryRank(a));
+  }
+
+  function historyTitleForDate(label) {
+    const rank = parseDateRank(label);
+    if (!rank) return label || "-";
+    return new Date(rank).toLocaleDateString("en-GB", {
+      weekday: "long",
+      day: "2-digit",
+      month: "short",
+      year: "numeric"
+    });
   }
 
   function groupBy(items, keyFn) {

@@ -546,11 +546,13 @@ select {
 .history-icon-button svg {
   width: 20px;
   height: 20px;
-  stroke: currentColor;
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  fill: none;
+  stroke: none;
+  fill: currentColor;
+}
+
+.history-icon-button svg path {
+  stroke: none;
+  fill: currentColor;
 }
 
 .dashboard-entry-row {
@@ -1627,20 +1629,14 @@ select {
   opacity: .62;
 }
 
-.history-date-group {
-  display: grid;
-  gap: 8px;
-  margin: 8px 16px 12px;
-}
-
 .history-date-card.section {
-  margin: 0;
-  padding: 10px 12px;
+  margin: 8px 16px 12px;
+  padding: 12px;
 }
 
 .history-date-card .section-title {
   display: block;
-  margin: 0;
+  margin-bottom: 10px;
 }
 
 .history-date-card .section-title h2 {
@@ -1663,6 +1659,9 @@ select {
 }
 
 .history-entry-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
   padding: 10px;
 }
 
@@ -1703,7 +1702,6 @@ select {
   .settlement-row,
   .stock-row,
   .section,
-  .history-date-group,
   .summary-main,
   .grid-3 {
     margin-left: 10px;
