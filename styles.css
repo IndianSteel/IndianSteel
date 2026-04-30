@@ -1627,6 +1627,54 @@ select {
   opacity: .62;
 }
 
+.history-date-group {
+  display: grid;
+  gap: 8px;
+  margin: 8px 16px 12px;
+}
+
+.history-date-card.section {
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.history-date-card .section-title {
+  display: block;
+  margin: 0;
+}
+
+.history-date-card .section-title h2 {
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 900;
+}
+
+.history-date-card .section-title h3 {
+  margin-top: 2px;
+  color: var(--blue);
+  font-size: 12px;
+  line-height: 15px;
+  font-weight: 900;
+}
+
+.history-entry-list {
+  display: grid;
+  gap: 8px;
+}
+
+.history-entry-card {
+  padding: 10px;
+}
+
+.history-entry-card .entry-row {
+  min-height: 54px;
+  padding: 0;
+}
+
+.history-entry-card .detail-box {
+  margin: 10px 0 0;
+}
+
 .receipt-print {
   display: none;
 }
@@ -1655,6 +1703,7 @@ select {
   .settlement-row,
   .stock-row,
   .section,
+  .history-date-group,
   .summary-main,
   .grid-3 {
     margin-left: 10px;

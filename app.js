@@ -779,6 +779,9 @@
     const hasDropdown = hasEntryDetailDropdown(entry);
     const open = hasDropdown && (source === "history" ? ui.historyOpen : ui.recentOpen) === key;
     const showRowDelete = source === "history";
+    const timeCaption = source === "history"
+      ? entry.timeLabel || entry.invoiceNo || ""
+      : `${entry.dateLabel || ""} ${entry.timeLabel || ""}`.trim();
     return `
       <div class="entry-row ${showRowDelete ? "has-delete" : ""} ${hasDropdown ? "is-expandable" : ""} ${open ? "is-open" : ""}" ${hasDropdown ? `data-toggle-entry="${esc(key)}" data-source="${esc(source)}"` : ""}>
         <span class="tile blue">${svg(entry.kind === "Payment" ? "card" : "chart")}</span>
@@ -787,7 +790,7 @@
           <span>${esc(entry.itemName || entry.subtitle || entry.kind)}</span>
           <span>${esc(entry.subtitle || entry.invoiceNo)}</span>
         </span>
-        <span class="row-right">${amount}<br>${esc(entry.dateLabel)} ${esc(entry.timeLabel)}</span>
+        <span class="row-right">${amount}<br>${esc(timeCaption)}</span>
         ${showRowDelete ? `<button class="mini-action danger" data-delete-entry="${esc(entry.id)}" aria-label="Delete">${svg("delete")}</button>` : ""}
       </div>
       ${open ? entryDetail(entry, { source }) : ""}`;
@@ -1021,9 +1024,16 @@
           </div>
         </section>
         ${Object.keys(grouped).length ? Object.entries(grouped).map(([date, rows]) => `
-          <section class="card section">
-            <div class="section-title"><h2>${esc(date)}</h2><h3>${esc(money(rows.reduce((sum, entry) => sum + dashboardSales(entry), 0)))}</h3></div>
-            ${rows.map(entry => entryRow(entry, "history")).join('<div class="divider"></div>')}
+          <section class="history-date-group">
+            <div class="card section history-date-card">
+              <div class="section-title">
+                <h2>${esc(date)}</h2>
+                <h3>Total sales Amount = ${esc(money(rows.reduce((sum, entry) => sum + dashboardSales(entry), 0)))}</h3>
+              </div>
+            </div>
+            <div class="history-entry-list">
+              ${rows.map(entry => `<section class="card history-entry-card">${entryRow(entry, "history")}</section>`).join("")}
+            </div>
           </section>`).join("") : '<section class="card section empty">No entries found.</section>'}
       </main>`;
   }
