@@ -746,7 +746,7 @@
         <span class="dashboard-entry-meta">${amount}<small>${dateCaption}</small></span>
         <button class="mini-action danger" data-delete-entry="${esc(entry.id)}" aria-label="Delete">${svg("delete")}</button>
       </div>
-      ${open ? entryDetail(entry) : ""}`;
+      ${open ? entryDetail(entry, { source: "recent" }) : ""}`;
   }
 
   function entryRow(entry, source) {
@@ -766,32 +766,130 @@
         </span>
         <span class="row-right">${amount}<br>${esc(entry.dateLabel)} ${esc(entry.timeLabel)}</span>
       </div>
-      ${open ? entryDetail(entry) : ""}`;
+      ${open ? entryDetail(entry, { source }) : ""}`;
   }
 
-  function entryDetail(entry) {
-    const due = saleDue(entry);
-    const saleItems = entry.saleItems.length ? entry.saleItems : [{ product: entry.itemName || "-", quantity: "1", rate: String(entry.amount), amount: entry.amount }];
+  function entryDetail(entry, options = {}) {
+    const summary = entryDetailSummary(entry);
+    const saleItems = entry.saleItems.length ? entry.saleItems : [{ product: entry.itemName || "-", quantity: "", rate: "", amount: summary.purchasedAmount }];
+    const isDueReceipt = isDuePaymentReceipt(entry);
+    const showDelete = options.source !== "recent";
     return `
-      <div class="detail-box">
-        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
-          <div>
-            <h3>Sale Number : ${esc(entry.invoiceNo || "-")}</h3>
-            <h3>Mobile Number : ${esc(entry.mobileNumber || "-")}</h3>
+      <div class="detail-box entry-detail">
+        <div class="detail-top">
+          <div class="detail-info">
+            ${detailInline("Sale Number", summary.saleNumber)}
+            ${detailInline("Mobile Number", entry.mobileNumber || "-")}
           </div>
-          <div style="display:flex;gap:7px">
-            <button class="mini-action" data-share-entry="${esc(entry.id)}" aria-label="Share">${whatsappIcon()}</button>
-            <button class="mini-action danger" data-delete-entry="${esc(entry.id)}" aria-label="Delete">${svg("delete")}</button>
+          <div class="detail-actions">
+            ${showDelete ? `<button class="mini-action danger" data-delete-entry="${esc(entry.id)}" aria-label="Delete">${svg("delete")}</button>` : ""}
+            ${!isDueReceipt ? `<button class="mini-action whatsapp-action" data-share-entry="${esc(entry.id)}" aria-label="Share">${whatsappIcon()}</button>` : ""}
           </div>
         </div>
-        <h3>Item Purchased:</h3>
-        ${saleItems.map((item, index) => `<div class="split-line"><span>${index + 1}. ${esc(item.product)}</span><span>${esc(money(item.amount))}</span></div>`).join("")}
-        <h3 style="margin-top:10px">Payment Details:</h3>
-        ${entry.purchasedAmount > 0 ? `<div class="split-line"><span>Purchased Amount</span><span>${esc(money(entry.purchasedAmount))}</span></div>` : ""}
-        ${entry.cuttingCharge > 0 ? `<div class="split-line"><span>Cutting Charge</span><span>${esc(money(entry.cuttingCharge))}</span></div>` : ""}
-        ${entry.discountAmount > 0 ? `<div class="split-line"><span>Discount Amount</span><span>${esc(money(entry.discountAmount))}</span></div>` : ""}
-        <div class="split-line"><span>Total Amount</span><span>${esc(money(entry.amount))}</span></div>
-        ${due > 0 ? `<div class="split-line"><span>Paid Amount</span><span>${esc(money(entry.paidAmount))}</span></div><div class="split-line"><span>Due Payment</span><span>${esc(money(due))}</span></div>` : ""}
+        <div class="detail-divider"></div>
+        <h3 class="detail-heading">Item Purchased:</h3>
+        <div class="detail-item-list">${saleItems.map((item, index) => detailItemBlock(item, index)).join("")}</div>
+        <h3 class="detail-heading payment-heading">Payment Details:</h3>
+        <section class="detail-payment-box">
+          ${summary.adjustments.map(row => detailAmountRow(row.label, row.value)).join("")}
+          <div class="detail-payment-modes">
+            ${detailPayMode("Cash", summary.cashPaid, summary.cashAccount)}
+            ${detailPayMode("Online", summary.onlinePaid, summary.onlineAccount)}
+          </div>
+          ${detailAmountRow("Total Amount", summary.totalAmount, true)}
+          ${summary.showPaidDue ? detailAmountRow("Paid Amount", summary.paidAmount) + detailAmountRow("Due Payment", summary.dueAmount) : ""}
+          ${summary.historyItems.length ? detailHistoryCard(summary) : ""}
+        </section>
+      </div>`;
+  }
+
+  function entryDetailSummary(entry) {
+    const dueReceipt = isDuePaymentReceipt(entry);
+    const historyItems = entry.duePaymentHistory || [];
+    const historyPaid = historyItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const totalAmount = dueReceipt ? Number(entry.dueSnapshotTotal || entry.amount || 0) : Number(entry.amount || 0);
+    const paidAfterHistory = dueReceipt ? Number(entry.dueSnapshotPaid || entry.paidAmount || 0) : Number(entry.paidAmount || 0);
+    const paidAmount = Math.max(0, paidAfterHistory - historyPaid);
+    const dueAmount = Math.max(0, totalAmount - paidAmount);
+    const purchasedAmount = Number(entry.purchasedAmount || totalAmount || 0);
+    const cuttingCharge = Number(entry.cuttingCharge || 0);
+    const discountAmount = Number(entry.discountAmount || 0);
+    const adjustments = [];
+    const hasAdjustments = Boolean(
+      cuttingCharge > 0 ||
+      discountAmount > 0 ||
+      Number(entry.advancePaymentApplied || 0) > 0 ||
+      Number(entry.previousDueApplied || 0) > 0 ||
+      (purchasedAmount > 0 && purchasedAmount !== totalAmount)
+    );
+    if (hasAdjustments) adjustments.push({ label: "Purchased Amount", value: purchasedAmount });
+    if (cuttingCharge > 0) adjustments.push({ label: "Cutting Charge", value: cuttingCharge });
+    if (discountAmount > 0) adjustments.push({ label: "Discount Amount", value: discountAmount });
+    if (Number(entry.advancePaymentApplied || 0) > 0) adjustments.push({ label: "Advance Payment", value: entry.advancePaymentApplied });
+    if (Number(entry.previousDueApplied || 0) > 0) adjustments.push({ label: "Due Payment", value: entry.previousDueApplied });
+    const cashPaid = Number(entry.cashPaidAmount || 0);
+    const rawOnlinePaid = Number(entry.onlinePaidAmount || 0);
+    const onlinePaid = cashPaid === 0 && rawOnlinePaid === 0 && paidAmount > 0 ? paidAmount : rawOnlinePaid;
+    return {
+      saleNumber: dueReceipt ? entry.sourceSaleNumber || entry.invoiceNo || "-" : entry.invoiceNo || entry.sourceSaleNumber || "-",
+      purchasedAmount,
+      totalAmount,
+      paidAmount,
+      dueAmount,
+      cashPaid,
+      onlinePaid,
+      cashAccount: cashPaid > 0 ? entry.cashAccount || "Indian Steel" : "-",
+      onlineAccount: onlinePaid > 0 ? entry.onlineAccount || "Indian Steel" : "-",
+      adjustments,
+      showPaidDue: dueReceipt || dueAmount > 0 || historyItems.length > 0,
+      historyItems,
+      historyStartPaid: paidAmount
+    };
+  }
+
+  function detailInline(label, value) {
+    return `<div class="detail-inline"><b>${esc(label.toUpperCase())} :</b><span>${esc(value || "-")}</span></div>`;
+  }
+
+  function detailItemBlock(item, index) {
+    return `
+      <article class="detail-item-card">
+        <div class="detail-item-name">${index + 1}. ${esc(String(item.product || "Sale Item").toUpperCase())}</div>
+        <div class="detail-pill-grid">
+          ${detailSmallPill("Qty.", item.quantity || "")}
+          ${detailSmallPill("Rate", item.rate || "")}
+        </div>
+        ${detailSmallPill("Amount", numberText(item.amount), "amount")}
+      </article>`;
+  }
+
+  function detailSmallPill(label, value, extraClass = "") {
+    return `<div class="detail-small-pill ${extraClass}"><span>${esc(label.toUpperCase())}</span><b>${esc(value || "")}</b></div>`;
+  }
+
+  function detailAmountRow(label, value, bold = false) {
+    return `<div class="detail-amount-row ${bold ? "bold" : ""}"><span>${esc(label.toUpperCase())}</span><b>${esc(numberText(value))}</b></div>`;
+  }
+
+  function detailPayMode(label, amount, account) {
+    const active = Number(amount || 0) > 0;
+    return `
+      <div class="detail-pay-mode ${active ? "active" : "disabled"}">
+        <span>${esc(label)}</span>
+        <b>${esc(numberText(amount))}</b>
+      </div>`;
+  }
+
+  function detailHistoryCard(summary) {
+    let runningPaid = summary.historyStartPaid;
+    return `
+      <div class="detail-history-card">
+        <h3 class="detail-heading">History:</h3>
+        ${summary.historyItems.map((item, index) => {
+          runningPaid = Math.min(summary.totalAmount, runningPaid + Number(item.amount || 0));
+          const runningDue = Math.max(0, summary.totalAmount - runningPaid);
+          return `<div class="detail-history-row"><span>${index + 1}.</span><div>${detailAmountRow("Paid Amount", item.amount, true)}${detailAmountRow("Due Amount", runningDue)}</div></div>`;
+        }).join("")}
       </div>`;
   }
 
