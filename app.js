@@ -437,11 +437,18 @@
   }
 
   function isDuePaymentReceipt(entry) {
-    return entry.kind === "Payment" && String(entry.subtitle || "").toLowerCase().startsWith("due payment");
+    return entry.kind === "Payment" && (
+      String(entry.sourceSaleNumber || "").trim().length > 0 ||
+      String(entry.subtitle || "").toLowerCase().startsWith("due payment")
+    );
   }
 
   function canShareSalesReceipt(entry) {
     return entry && entry.kind === "Sale";
+  }
+
+  function hasEntryDetailDropdown(entry) {
+    return !!entry && (entry.kind === "Sale" || isDuePaymentReceipt(entry));
   }
 
   async function openDb() {
@@ -747,10 +754,11 @@
       ? due > 0 ? `<span class="money">${esc(money(entry.amount))}</span> <span class="money red">- ${esc(money(due))}</span>` : `<span class="money">${esc(money(entry.amount))}</span>`
       : `<span class="money">${esc(money(entry.amount || entry.paidAmount))}</span>`;
     const key = entry.id;
-    const open = ui.recentOpen === key;
+    const hasDropdown = hasEntryDetailDropdown(entry);
+    const open = hasDropdown && ui.recentOpen === key;
     const dateCaption = entry.timeLabel ? `${esc(entry.dateLabel)},<br>${esc(entry.timeLabel)}` : esc(entry.dateLabel);
     return `
-      <div class="dashboard-entry-row" data-toggle-entry="${esc(key)}" data-source="recent">
+      <div class="dashboard-entry-row ${hasDropdown ? "is-expandable" : ""} ${open ? "is-open" : ""}" ${hasDropdown ? `data-toggle-entry="${esc(key)}" data-source="recent"` : ""}>
         <span class="tile blue">${svg(entry.kind === "Payment" ? "card" : "chart")}</span>
         <span class="row-main">
           <b>${esc(entry.customer || "Walk-in Customer")}</b>
@@ -768,9 +776,11 @@
       ? due > 0 ? `<span class="money">${esc(money(entry.amount))}</span> <span class="money red">- ${esc(money(due))}</span>` : `<span class="money">${esc(money(entry.amount))}</span>`
       : `<span class="money">${esc(money(entry.amount || entry.paidAmount))}</span>`;
     const key = entry.id;
-    const open = (source === "history" ? ui.historyOpen : ui.recentOpen) === key;
+    const hasDropdown = hasEntryDetailDropdown(entry);
+    const open = hasDropdown && (source === "history" ? ui.historyOpen : ui.recentOpen) === key;
+    const showRowDelete = source === "history";
     return `
-      <div class="entry-row" data-toggle-entry="${esc(key)}" data-source="${esc(source)}">
+      <div class="entry-row ${showRowDelete ? "has-delete" : ""} ${hasDropdown ? "is-expandable" : ""} ${open ? "is-open" : ""}" ${hasDropdown ? `data-toggle-entry="${esc(key)}" data-source="${esc(source)}"` : ""}>
         <span class="tile blue">${svg(entry.kind === "Payment" ? "card" : "chart")}</span>
         <span class="row-main">
           <b>${esc(entry.customer || "Walk-in Customer")}</b>
@@ -778,6 +788,7 @@
           <span>${esc(entry.subtitle || entry.invoiceNo)}</span>
         </span>
         <span class="row-right">${amount}<br>${esc(entry.dateLabel)} ${esc(entry.timeLabel)}</span>
+        ${showRowDelete ? `<button class="mini-action danger" data-delete-entry="${esc(entry.id)}" aria-label="Delete">${svg("delete")}</button>` : ""}
       </div>
       ${open ? entryDetail(entry, { source }) : ""}`;
   }
@@ -785,8 +796,6 @@
   function entryDetail(entry, options = {}) {
     const summary = entryDetailSummary(entry);
     const saleItems = entry.saleItems.length ? entry.saleItems : [{ product: entry.itemName || "-", quantity: "", rate: "", amount: summary.purchasedAmount }];
-    const isDueReceipt = isDuePaymentReceipt(entry);
-    const showDelete = options.source !== "recent";
     return `
       <div class="detail-box entry-detail">
         <div class="detail-top">
@@ -795,7 +804,6 @@
             ${detailInline("Mobile Number", entry.mobileNumber || "-")}
           </div>
           <div class="detail-actions">
-            ${showDelete ? `<button class="mini-action danger" data-delete-entry="${esc(entry.id)}" aria-label="Delete">${svg("delete")}</button>` : ""}
             ${canShareSalesReceipt(entry) ? `<button class="mini-action whatsapp-action" data-share-entry="${esc(entry.id)}" aria-label="Share">${whatsappIcon()}</button>` : ""}
           </div>
         </div>
@@ -1451,13 +1459,8 @@
       ui.reportRange = el.dataset.report;
     }));
     document.querySelectorAll("[data-toggle-entry]").forEach(el => el.addEventListener("click", event => {
-      if (event.target.closest("button")) return;
-      const key = el.dataset.toggleEntry;
-      if (el.dataset.source === "history") {
-        ui.historyOpen = ui.historyOpen === key ? "" : key;
-      } else {
-        ui.recentOpen = ui.recentOpen === key ? "" : key;
-      }
+      if (event.target.closest("button,a,input,select,textarea,label")) return;
+      toggleEntryDropdown(el.dataset.toggleEntry, el.dataset.source);
       scheduleRender();
     }));
     document.querySelectorAll("[data-overlay-close]").forEach(el => el.addEventListener("click", event => {
@@ -1501,18 +1504,32 @@
     const historySearch = document.querySelector("[data-history-search]");
     if (historySearch) historySearch.addEventListener("input", () => {
       ui.historySearch = historySearch.value;
+      ui.historyOpen = "";
       scheduleRender();
     });
     const historyFrom = document.querySelector("[data-history-from]");
     if (historyFrom) historyFrom.addEventListener("input", () => {
       ui.historyFrom = historyFrom.value;
+      ui.historyOpen = "";
       scheduleRender();
     });
     const historyTo = document.querySelector("[data-history-to]");
     if (historyTo) historyTo.addEventListener("input", () => {
       ui.historyTo = historyTo.value;
+      ui.historyOpen = "";
       scheduleRender();
     });
+  }
+
+  function toggleEntryDropdown(key, source) {
+    if (!key) return;
+    if (source === "history") {
+      ui.historyOpen = ui.historyOpen === key ? "" : key;
+      ui.recentOpen = "";
+    } else {
+      ui.recentOpen = ui.recentOpen === key ? "" : key;
+      ui.historyOpen = "";
+    }
   }
 
   function handleAction(event, action) {
