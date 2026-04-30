@@ -1,16 +1,18 @@
-const CACHE_NAME = "indiansteel-pwa-20260501-dashboard-5";
+const CACHE_NAME = "indiansteel-pwa-20260501-dashboard-6";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
-  "./styles.css?v=20260501-dashboard-5",
+  "./styles.css?v=20260501-dashboard-6",
   "./app.js",
-  "./app.js?v=20260501-dashboard-5",
+  "./app.js?v=20260501-dashboard-6",
   "./manifest.webmanifest",
-  "./manifest.webmanifest?v=20260501-dashboard-5",
+  "./manifest.webmanifest?v=20260501-dashboard-6",
   "./icons/icon.svg",
   "./icons/indian-steel-logo.png",
-  "./icons/whatsapp-icon.png"
+  "./icons/whatsapp-icon.png",
+  "./icons/receipt-logo.png",
+  "./icons/receipt-stamp-signature.png"
 ];
 
 self.addEventListener("install", event => {

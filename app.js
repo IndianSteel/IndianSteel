@@ -13,6 +13,14 @@
   const GOOGLE_DRIVE_FOLDER_ID = "1uqSmcaXlqAzGZ1QR0JctoORJsLNQrmy3";
   const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive openid email profile";
   const BUILT_IN_ADMINS = new Set(["indianssteel@gmail.com", "onlineuse0123@gmail.com"]);
+  const RECEIPT_PAGE_WIDTH = 595;
+  const RECEIPT_PAGE_HEIGHT = 842;
+  const RECEIPT_LOGO_SRC = "./icons/receipt-logo.png";
+  const RECEIPT_STAMP_SRC = "./icons/receipt-stamp-signature.png";
+  const INDIAN_STEEL_OWNER_MOBILE = "8898644245";
+  const INDIAN_STEEL_RECEIPT_EMAIL = "indianssteel@gmail.com";
+  const INDIAN_STEEL_MAPS_URL = "https://www.google.com/maps/place/Indian+Steel/@19.1376069,73.0507051,17z/data=!3m1!4b1!4m6!3m5!1s0x3be7c1ef7e5ce01d:0x8c89fa91b0bb5596!8m2!3d19.1376069!4d73.0507051!16s%2Fg%2F11s65w7sc8?entry=ttu";
+  const INDIAN_STEEL_RECEIPT_ADDRESS = "Shop No. 2, Goverdhan Hotel, Near Perfect Granite, Mumbra Panvel Road, Uttarshiv, Thane, Maharashtra - 400612.";
   const DEFAULT_ITEMS = [
     "Old MS Round Pipe",
     "Old G.I. Round Pipe",
@@ -37,6 +45,7 @@
   let saveTimer = 0;
   let renderTimer = 0;
   let syncTimer = 0;
+  let receiptAssetsPromise = null;
 
   const ui = {
     screen: "dashboard",
@@ -431,6 +440,10 @@
     return entry.kind === "Payment" && String(entry.subtitle || "").toLowerCase().startsWith("due payment");
   }
 
+  function canShareSalesReceipt(entry) {
+    return entry && entry.kind === "Sale";
+  }
+
   async function openDb() {
     if (!("indexedDB" in window)) return null;
     return new Promise((resolve, reject) => {
@@ -783,7 +796,7 @@
           </div>
           <div class="detail-actions">
             ${showDelete ? `<button class="mini-action danger" data-delete-entry="${esc(entry.id)}" aria-label="Delete">${svg("delete")}</button>` : ""}
-            ${!isDueReceipt ? `<button class="mini-action whatsapp-action" data-share-entry="${esc(entry.id)}" aria-label="Share">${whatsappIcon()}</button>` : ""}
+            ${canShareSalesReceipt(entry) ? `<button class="mini-action whatsapp-action" data-share-entry="${esc(entry.id)}" aria-label="Share">${whatsappIcon()}</button>` : ""}
           </div>
         </div>
         <div class="detail-divider"></div>
@@ -1743,13 +1756,560 @@
 
   async function shareEntry(entryId) {
     const entry = data.entries.find(item => item.id === entryId);
-    if (!entry) return;
-    const text = `${data.businessProfile.name || "Indian Steel"}\n${entry.customer}\n${entry.invoiceNo}\nTotal: ${money(entry.amount)}\nPaid: ${money(entry.paidAmount)}\nDue: ${money(saleDue(entry))}`;
-    if (navigator.share) {
-      await navigator.share({ title: "Sales Receipt", text }).catch(() => {});
-    } else {
-      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+    if (!canShareSalesReceipt(entry)) return;
+    const title = `Sales Receipt ${entry.invoiceNo || ""}`.trim();
+    try {
+      const file = await createSalesReceiptPdfFile(entry);
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ title, files: [file] }).catch(() => {});
+        return;
+      }
+      openPdfBlob(file);
+    } catch (error) {
+      const text = `${data.businessProfile.name || "Indian Steel"}\n${entry.customer}\n${entry.invoiceNo}\nTotal: ${money(entry.amount)}\nPaid: ${money(originalSalePaidAmount(entry))}\nDue: ${money(Math.max(0, entry.amount - originalSalePaidAmount(entry)))}`;
+      if (navigator.share) {
+        await navigator.share({ title, text }).catch(() => {});
+      } else {
+        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+      }
     }
+  }
+
+  async function createSalesReceiptPdfFile(entry) {
+    const blob = await createSalesReceiptPdfBlob(entry);
+    const invoicePart = cleanFilePart(entry.invoiceNo).replace(/^_+|_+$/g, "") || String(Date.now());
+    return new File([blob], `SALES_RECEIPT_${invoicePart}.pdf`, { type: "application/pdf" });
+  }
+
+  async function createSalesReceiptPdfBlob(entry) {
+    const assets = await loadReceiptAssets();
+    const scale = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = RECEIPT_PAGE_WIDTH * scale;
+    canvas.height = RECEIPT_PAGE_HEIGHT * scale;
+    const ctx = canvas.getContext("2d", { alpha: false });
+    ctx.scale(scale, scale);
+    drawSalesReceiptCanvas(ctx, entry, assets);
+    const jpegBytes = dataUrlToBytes(canvas.toDataURL("image/jpeg", 0.94));
+    return buildSinglePagePdf({
+      imageBytes: jpegBytes,
+      imageWidth: canvas.width,
+      imageHeight: canvas.height,
+      annotations: receiptPdfAnnotations()
+    });
+  }
+
+  function openPdfBlob(blob) {
+    const url = URL.createObjectURL(blob);
+    const opened = window.open(url, "_blank", "noopener");
+    if (!opened) {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = blob.name || "SALES_RECEIPT.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
+  function loadReceiptAssets() {
+    if (!receiptAssetsPromise) {
+      receiptAssetsPromise = Promise.all([
+        loadImage(RECEIPT_LOGO_SRC),
+        loadImage(RECEIPT_STAMP_SRC)
+      ]).then(([logo, stamp]) => ({ logo, stamp }));
+    }
+    return receiptAssetsPromise;
+  }
+
+  function loadImage(src) {
+    return new Promise(resolve => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => resolve(null);
+      image.src = src;
+    });
+  }
+
+  function drawSalesReceiptCanvas(ctx, entry, assets) {
+    const black = "#111827";
+    const pageWidth = RECEIPT_PAGE_WIDTH;
+    const pageHeight = RECEIPT_PAGE_HEIGHT;
+    const purchasedItems = saleReceiptItems(entry);
+    const defaultDateTime = [entry.dateLabel, entry.timeLabel].filter(Boolean).join(", ") || "-";
+    const receiptPaidAmount = originalSalePaidAmount(entry);
+    const dueAmount = Math.max(0, Number(entry.amount || 0) - receiptPaidAmount);
+    const purchasedAmount = purchaseDisplayAmount(entry);
+    const cuttingCharge = Number(entry.cuttingCharge || 0);
+    const discountAmount = Number(entry.discountAmount || 0);
+    const cashPaid = originalSaleCashPaidAmount(entry);
+    const onlineRaw = originalSaleOnlinePaidAmount(entry);
+    const displayOnlinePaid = cashPaid === 0 && onlineRaw === 0 && receiptPaidAmount > 0 ? receiptPaidAmount : onlineRaw;
+
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, pageWidth, pageHeight);
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 1.1;
+    ctx.strokeRect(6, 5, pageWidth - 12, pageHeight - 10);
+    drawImageFit(ctx, assets.logo, 248, 10, 347, 101);
+
+    drawPhoneIcon(ctx, 508, 24);
+    drawMailIcon(ctx, 508, 39);
+    drawFit(ctx, INDIAN_STEEL_OWNER_MOBILE, 518, 588, 27, 6.6);
+    drawFit(ctx, INDIAN_STEEL_RECEIPT_EMAIL, 518, 588, 42, 6.6);
+
+    drawFit(ctx, "Buyer & Seller of Scaffolding and All Types of Scrap", 90, 505, 119, 13.5, true, "center");
+    const addressBox = { left: 6, top: 130, right: pageWidth - 6, bottom: 148 };
+    const addressCenterY = (addressBox.top + addressBox.bottom) / 2;
+    drawRectStroke(ctx, addressBox.left, addressBox.top, addressBox.right, addressBox.bottom, 0.75);
+    setReceiptFont(ctx, 7.8, false);
+    const fittedAddress = fittedCanvasText(ctx, INDIAN_STEEL_RECEIPT_ADDRESS, addressBox.right - addressBox.left - 34);
+    const groupWidth = 9 + 5 + ctx.measureText(fittedAddress).width;
+    const groupLeft = addressBox.left + ((addressBox.right - addressBox.left - groupWidth) / 2);
+    drawLocationIcon(ctx, groupLeft + 4.5, addressCenterY);
+    drawFit(ctx, fittedAddress, groupLeft + 14, addressBox.right - 10, addressCenterY + 2.9, 7.8);
+
+    const labelPaintSize = 8.8;
+    const detailSize = 7.8;
+    const infoBaseline = 164;
+    const saleNumberLabel = "SALE NUMBER :";
+    drawFit(ctx, saleNumberLabel, 18, 90, infoBaseline, labelPaintSize);
+    const saleNumberLeft = 18 + measureReceiptText(ctx, saleNumberLabel, labelPaintSize) + 3;
+    drawFit(ctx, entry.invoiceNo || "-", saleNumberLeft, 245, infoBaseline - 0.4, detailSize);
+    drawRightDetailPair(ctx, "DATE & TIME :", defaultDateTime, defaultDateTime, infoBaseline, pageWidth - 18);
+
+    drawFit(ctx, "SALES RECEIPT", 190, 405, 195, 12, true, "center");
+
+    const customerBaseline = 236;
+    const customerNameLabel = "CUSTOMER NAME :";
+    drawFit(ctx, customerNameLabel, 18, 110, customerBaseline, labelPaintSize);
+    drawFit(ctx, entry.customer || "-", 18 + measureReceiptText(ctx, customerNameLabel, labelPaintSize) + 3, 280, customerBaseline - 0.4, detailSize);
+    drawRightDetailPair(ctx, "MOBILE NUMBER :", entry.mobileNumber || "", entry.mobileNumber || "0000000000", customerBaseline, pageWidth - 18);
+
+    const itemTop = 248;
+    const rowLeft = 56;
+    const rowRight = 558;
+    const productSeparator = 312;
+    const qtySeparator = 392;
+    const rateSeparator = 470;
+    const firstRowTop = itemTop + 50;
+    const rowHeight = 20;
+    const rowGap = purchasedItems.length <= 3 ? 14 : 8;
+    const itemRowsHeight = purchasedItems.length ? (purchasedItems.length * rowHeight) + ((purchasedItems.length - 1) * rowGap) : 0;
+    const itemBottom = Math.max(itemTop + 112, firstRowTop + itemRowsHeight + 16);
+    drawRectStroke(ctx, 18, itemTop, pageWidth - 18, itemBottom, 1.1);
+    drawFit(ctx, "PURCHASED ITEM LIST:", 28, 170, itemTop + 17, labelPaintSize);
+    drawFit(ctx, "QTY", productSeparator, qtySeparator, itemTop + 36, labelPaintSize, false, "center");
+    drawFit(ctx, "RATE", qtySeparator, rateSeparator, itemTop + 36, labelPaintSize, false, "center");
+    drawFit(ctx, "AMOUNT", rateSeparator, rowRight, itemTop + 36, labelPaintSize, false, "center");
+    purchasedItems.forEach((item, index) => {
+      const top = firstRowTop + (index * (rowHeight + rowGap));
+      const bottom = top + rowHeight;
+      if (bottom > itemBottom - 10) return;
+      drawFit(ctx, `${index + 1}.`, 24, rowLeft - 5, bottom - 6, labelPaintSize, false, "right");
+      drawRoundBox(ctx, rowLeft, top, rowRight, bottom, 8);
+      [productSeparator, qtySeparator, rateSeparator].forEach(x => drawLine(ctx, x, top + 1, x, bottom - 1));
+      drawFitCenter(ctx, item.product || "Sale Item", rowLeft + 10, top, productSeparator - 8, bottom, 8.1);
+      drawFitCenter(ctx, item.quantity || "-", productSeparator + 5, top, qtySeparator - 5, bottom, 8.1);
+      drawFitCenter(ctx, item.rate || "-", qtySeparator + 5, top, rateSeparator - 5, bottom, 8.1);
+      drawFitCenter(ctx, receiptCurrency(item.amount), rateSeparator + 5, top, rowRight - 8, bottom, 9.1, true);
+    });
+
+    const paymentContentLeft = rowLeft;
+    const paymentContentRight = rowRight;
+    const paymentSummaryDivider = 318;
+    const paymentSummaryRows = [
+      ["PURCHASED AMOUNT", receiptCurrency(purchasedAmount)],
+      ...(cuttingCharge > 0 ? [["CUTTING CHARGE", receiptCurrency(cuttingCharge)]] : []),
+      ...(discountAmount > 0 ? [["DISCOUNT AMOUNT", receiptCurrency(discountAmount)]] : []),
+      ["TOTAL AMOUNT", receiptCurrency(entry.amount)]
+    ];
+    const paymentTop = itemBottom + 17;
+    const paymentSummaryTop = paymentTop + 48;
+    const paymentSummaryStep = 21;
+    const lastSummaryBottom = paymentSummaryTop + ((paymentSummaryRows.length - 1) * paymentSummaryStep) + 17;
+    const paidDueLabelY = lastSummaryBottom + 15;
+    const paidDueBoxTop = paidDueLabelY + 8;
+    const paymentModeTop = paidDueBoxTop + 34;
+    const footerTop = 808;
+    const historyHeaderTop = paymentModeTop + 34;
+    const historyRowTop = historyHeaderTop + 19;
+    const historyRowHeight = 18;
+    const dueHistoryRows = receiptDueHistoryRows(entry, receiptPaidAmount, Number(entry.amount || 0), footerTop, historyRowTop, historyRowHeight);
+    const historyBottom = dueHistoryRows.length ? historyRowTop + (dueHistoryRows.length * historyRowHeight) : historyHeaderTop;
+    const paymentBottom = dueHistoryRows.length ? historyBottom + 14 : paymentModeTop + 34;
+
+    drawRectStroke(ctx, 18, paymentTop, pageWidth - 18, paymentBottom, 1.1);
+    drawFit(ctx, "PAYMENT DETAILS:", 28, 210, paymentTop + 22, labelPaintSize);
+    paymentSummaryRows.forEach((row, index) => {
+      const top = paymentSummaryTop + (index * paymentSummaryStep);
+      drawRoundBox(ctx, paymentContentLeft, top, paymentContentRight, top + 17, 8);
+      drawLine(ctx, paymentSummaryDivider, top + 1, paymentSummaryDivider, top + 16);
+      drawFitCenter(ctx, row[0], paymentContentLeft + 12, top, paymentSummaryDivider - 5, top + 17, labelPaintSize);
+      drawFitCenter(ctx, row[1], paymentSummaryDivider + 7, top, paymentContentRight - 8, top + 17, 9.1, true);
+    });
+
+    const paidDueGap = 60;
+    const paidDueBoxWidth = (paymentContentRight - paymentContentLeft - paidDueGap) / 2;
+    const paidBoxLeft = paymentContentLeft;
+    const paidBoxRight = paidBoxLeft + paidDueBoxWidth;
+    const dueBoxRight = paymentContentRight;
+    const dueBoxLeft = dueBoxRight - paidDueBoxWidth;
+    drawFit(ctx, "PAID AMOUNT", paidBoxLeft, paidBoxRight, paidDueLabelY, labelPaintSize, false, "center");
+    drawFit(ctx, "DUE AMOUNT", dueBoxLeft, dueBoxRight, paidDueLabelY, labelPaintSize, false, "center");
+    drawRoundBox(ctx, paidBoxLeft, paidDueBoxTop, paidBoxRight, paidDueBoxTop + 20, 8);
+    drawRoundBox(ctx, dueBoxLeft, paidDueBoxTop, dueBoxRight, paidDueBoxTop + 20, 8);
+    drawFitCenter(ctx, receiptCurrency(receiptPaidAmount), paidBoxLeft, paidDueBoxTop, paidBoxRight, paidDueBoxTop + 20, 9.1, true);
+    drawFitCenter(ctx, receiptCurrency(dueAmount), dueBoxLeft, paidDueBoxTop, dueBoxRight, paidDueBoxTop + 20, 9.1, true);
+
+    const paymentModeLeft = paymentContentLeft;
+    const paymentModeRight = paymentContentRight;
+    const paymentModeWidth = paymentModeRight - paymentModeLeft;
+    const cashLabelDivider = paymentModeLeft + (paymentModeWidth * (60 / 465));
+    const onlineLabelDivider = paymentModeLeft + (paymentModeWidth * (235 / 465));
+    const onlineValueDivider = paymentModeLeft + (paymentModeWidth * (340 / 465));
+    drawRoundBox(ctx, paymentModeLeft, paymentModeTop, paymentModeRight, paymentModeTop + 20, 8);
+    [cashLabelDivider, onlineLabelDivider, onlineValueDivider].forEach(x => drawLine(ctx, x, paymentModeTop + 1, x, paymentModeTop + 19));
+    drawFitCenter(ctx, "CASH", paymentModeLeft + 5, paymentModeTop, cashLabelDivider - 4, paymentModeTop + 20, labelPaintSize);
+    drawFitCenter(ctx, receiptCurrency(cashPaid), cashLabelDivider + 5, paymentModeTop, onlineLabelDivider - 5, paymentModeTop + 20, 9.1, true);
+    drawFitCenter(ctx, "ONLINE", onlineLabelDivider + 5, paymentModeTop, onlineValueDivider - 4, paymentModeTop + 20, labelPaintSize);
+    drawFitCenter(ctx, receiptCurrency(displayOnlinePaid), onlineValueDivider + 5, paymentModeTop, paymentModeRight - 6, paymentModeTop + 20, 9.1, true);
+
+    if (dueHistoryRows.length) {
+      drawFit(ctx, "HISTORY:", 28, 180, historyHeaderTop + 12, labelPaintSize);
+      const serialRight = paymentContentLeft + 30;
+      const dateRight = paymentContentLeft + 198;
+      const paidRight = paymentContentLeft + 282;
+      const dueRight = paymentContentLeft + 366;
+      const cashRight = paymentContentLeft + 434;
+      dueHistoryRows.forEach((row, index) => {
+        const top = historyRowTop + (index * historyRowHeight);
+        const bottom = top + 15;
+        drawRoundBox(ctx, paymentContentLeft, top, paymentContentRight, bottom, 6);
+        [serialRight, dateRight, paidRight, dueRight, cashRight].forEach(x => drawLine(ctx, x, top + 1, x, bottom - 1));
+        drawFitCenter(ctx, row.serial, paymentContentLeft + 4, top, serialRight - 3, bottom, labelPaintSize);
+        drawFitCenter(ctx, row.dateTime, serialRight + 4, top, dateRight - 4, bottom, 8.1);
+        drawFitCenter(ctx, row.paidAmount, dateRight + 4, top, paidRight - 4, bottom, 7.4, true);
+        drawFitCenter(ctx, row.dueAmount, paidRight + 4, top, dueRight - 4, bottom, 7.4, true);
+        drawFitCenter(ctx, row.cashAmount, dueRight + 4, top, cashRight - 4, bottom, 7.4, true);
+        drawFitCenter(ctx, row.onlineAmount, cashRight + 4, top, paymentContentRight - 4, bottom, 7.4, true);
+      });
+    }
+
+    const stampTop = Math.min(Math.max(640, paymentBottom + 12), footerTop - 88);
+    drawImageFit(ctx, assets.stamp, 365, stampTop, 555, Math.min(stampTop + 105, footerTop - 8));
+    ctx.fillStyle = "#000";
+    ctx.fillRect(6, footerTop, pageWidth - 12, 20);
+    drawFit(ctx, "Thank you for your business! We appreciate your trust in Indian Steel and look forward to serving you again.", 12, pageWidth - 12, 821, 8, true, "center", "#fff");
+  }
+
+  function saleReceiptItems(entry) {
+    const purchasedItems = entry.saleItems && entry.saleItems.length
+      ? entry.saleItems
+      : [{ product: entry.itemName || "Sale Item", quantity: "", rate: "", amount: purchaseDisplayAmount(entry) }];
+    const maxRows = 6;
+    if (purchasedItems.length <= maxRows) return purchasedItems;
+    return purchasedItems.slice(0, maxRows - 1).concat({
+      ...purchasedItems[maxRows - 1],
+      product: `${purchasedItems[maxRows - 1].product} +${purchasedItems.length - maxRows} more`
+    });
+  }
+
+  function receiptDueHistoryRows(entry, startingPaid, totalAmount, footerTop, historyRowTop, historyRowHeight) {
+    const historyItems = entry.duePaymentHistory || [];
+    if (!historyItems.length) return [];
+    const maxRows = Math.max(0, Math.floor((footerTop - historyRowTop - 16) / historyRowHeight));
+    if (!maxRows) return [];
+    let runningPaid = Math.max(0, Math.min(startingPaid, totalAmount));
+    const rows = historyItems.map((item, index) => {
+      runningPaid = Math.min(totalAmount, runningPaid + Number(item.amount || 0));
+      return {
+        serial: `${index + 1}.`,
+        dateTime: item.dateTime || "-",
+        paidAmount: receiptCurrency(item.amount),
+        dueAmount: receiptCurrency(Math.max(0, totalAmount - runningPaid)),
+        cashAmount: receiptCurrency(item.cashAmount),
+        onlineAmount: receiptCurrency(item.onlineAmount)
+      };
+    });
+    if (rows.length <= maxRows) return rows;
+    if (maxRows === 1) return [{ serial: "", dateTime: `+${rows.length} MORE`, paidAmount: "-", dueAmount: "-", cashAmount: "-", onlineAmount: "-" }];
+    return rows.slice(0, maxRows - 1).concat({ serial: "", dateTime: `+${rows.length - maxRows + 1} MORE`, paidAmount: "-", dueAmount: "-", cashAmount: "-", onlineAmount: "-" });
+  }
+
+  function originalSalePaidAmount(entry) {
+    if (!entry || entry.kind !== "Sale") return Number(entry && entry.paidAmount || 0);
+    const duePaidLater = (entry.duePaymentHistory || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    return Math.max(0, Number(entry.paidAmount || 0) - duePaidLater);
+  }
+
+  function originalSaleCashPaidAmount(entry) {
+    const cash = Number(entry && entry.cashPaidAmount || 0);
+    if (!entry || entry.kind !== "Sale") return cash;
+    const basePaid = originalSalePaidAmount(entry);
+    const modeTotal = Number(entry.cashPaidAmount || 0) + Number(entry.onlinePaidAmount || 0);
+    const cashPaidLater = (entry.duePaymentHistory || []).reduce((sum, item) => sum + Number(item.cashAmount || 0), 0);
+    return modeTotal > basePaid ? Math.max(0, cash - cashPaidLater) : cash;
+  }
+
+  function originalSaleOnlinePaidAmount(entry) {
+    const online = Number(entry && entry.onlinePaidAmount || 0);
+    if (!entry || entry.kind !== "Sale") return online;
+    const basePaid = originalSalePaidAmount(entry);
+    const modeTotal = Number(entry.cashPaidAmount || 0) + Number(entry.onlinePaidAmount || 0);
+    const onlinePaidLater = (entry.duePaymentHistory || []).reduce((sum, item) => sum + Number(item.onlineAmount || 0), 0);
+    return modeTotal > basePaid ? Math.max(0, online - onlinePaidLater) : online;
+  }
+
+  function purchaseDisplayAmount(entry) {
+    return Number(entry && entry.purchasedAmount || 0) || Number(entry && entry.amount || 0);
+  }
+
+  function receiptCurrency(value) {
+    return `${INR} ${numberText(value)}`;
+  }
+
+  function drawRightDetailPair(ctx, label, value, reservedValue, baseline, rightEdge) {
+    const displayValue = value || "-";
+    const reservedText = reservedValue || displayValue;
+    const valueLeft = rightEdge - measureReceiptText(ctx, reservedText, 7.8);
+    const labelRight = valueLeft - 3;
+    const labelLeft = labelRight - measureReceiptText(ctx, label, 8.8);
+    drawFit(ctx, label, labelLeft, labelRight, baseline, 8.8);
+    drawFit(ctx, displayValue, valueLeft, rightEdge, baseline - 0.4, 7.8);
+  }
+
+  function setReceiptFont(ctx, size, bold = false, color = "#111827", align = "left", baseline = "alphabetic") {
+    ctx.font = `${bold ? "700" : "400"} ${size}px Arial, Helvetica, sans-serif`;
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.textBaseline = baseline;
+  }
+
+  function measureReceiptText(ctx, text, size, bold = false) {
+    setReceiptFont(ctx, size, bold);
+    return ctx.measureText(String(text || "")).width;
+  }
+
+  function fittedCanvasText(ctx, text, maxWidth) {
+    const raw = String(text || "");
+    if (ctx.measureText(raw).width <= maxWidth) return raw;
+    let left = 0;
+    let right = raw.length;
+    while (left < right) {
+      const mid = Math.ceil((left + right) / 2);
+      if (ctx.measureText(`${raw.slice(0, mid)}...`).width <= maxWidth) left = mid;
+      else right = mid - 1;
+    }
+    return `${raw.slice(0, Math.max(0, left))}...`;
+  }
+
+  function drawFit(ctx, text, left, right, baseline, size, bold = false, align = "left", color = "#111827") {
+    setReceiptFont(ctx, size, bold, color, align, "alphabetic");
+    const fitted = fittedCanvasText(ctx, text, Math.max(0, right - left));
+    const x = align === "center" ? (left + right) / 2 : align === "right" ? right : left;
+    ctx.fillText(fitted, x, baseline);
+  }
+
+  function drawFitCenter(ctx, text, left, top, right, bottom, size, bold = false) {
+    setReceiptFont(ctx, size, bold, "#111827", "center", "middle");
+    const fitted = fittedCanvasText(ctx, text, Math.max(0, right - left));
+    ctx.fillText(fitted, (left + right) / 2, (top + bottom) / 2);
+  }
+
+  function drawRectStroke(ctx, left, top, right, bottom, width = 1) {
+    ctx.save();
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = width;
+    ctx.strokeRect(left, top, right - left, bottom - top);
+    ctx.restore();
+  }
+
+  function drawLine(ctx, x1, y1, x2, y2) {
+    ctx.save();
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 0.75;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawRoundBox(ctx, left, top, right, bottom, radius) {
+    ctx.save();
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 1.1;
+    roundedPath(ctx, left, top, right - left, bottom - top, radius);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function roundedPath(ctx, x, y, width, height, radius) {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+  }
+
+  function drawImageFit(ctx, image, left, top, right, bottom) {
+    if (!image) return;
+    const boxWidth = right - left;
+    const boxHeight = bottom - top;
+    const scale = Math.min(boxWidth / image.naturalWidth, boxHeight / image.naturalHeight);
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+    ctx.drawImage(image, left + ((boxWidth - width) / 2), top + ((boxHeight - height) / 2), width, height);
+  }
+
+  function drawPhoneIcon(ctx, centerX, centerY) {
+    ctx.save();
+    ctx.fillStyle = "#000";
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 5.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.moveTo(centerX - 3.55, centerY - 2.85);
+    ctx.bezierCurveTo(centerX - 4.15, centerY - 1.85, centerX - 3.45, centerY + 0.9, centerX - 1.15, centerY + 2.45);
+    ctx.bezierCurveTo(centerX + 0.95, centerY + 3.85, centerX + 3.45, centerY + 3.85, centerX + 4, centerY + 2.9);
+    ctx.lineTo(centerX + 2.55, centerY + 1.35);
+    ctx.bezierCurveTo(centerX + 2.05, centerY + 0.85, centerX + 1.25, centerY + 0.85, centerX + 0.8, centerY + 1.35);
+    ctx.lineTo(centerX + 0.25, centerY + 1.95);
+    ctx.bezierCurveTo(centerX - 0.75, centerY + 1.55, centerX - 1.75, centerY + 0.55, centerX - 2.15, centerY - 0.45);
+    ctx.lineTo(centerX - 1.5, centerY - 1);
+    ctx.bezierCurveTo(centerX - 0.95, centerY - 1.5, centerX - 0.95, centerY - 2.25, centerX - 1.5, centerY - 2.8);
+    ctx.lineTo(centerX - 3, centerY - 4.15);
+    ctx.bezierCurveTo(centerX - 3.2, centerY - 4, centerX - 3.4, centerY - 3.65, centerX - 3.55, centerY - 2.85);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawMailIcon(ctx, centerX, centerY) {
+    ctx.save();
+    ctx.fillStyle = "#000";
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 5.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 0.9;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    const left = centerX - 3.9;
+    const top = centerY - 2.7;
+    const right = centerX + 3.9;
+    const bottom = centerY + 3;
+    roundedPath(ctx, left, top, right - left, bottom - top, 1.2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(left + 0.7, top + 0.8);
+    ctx.lineTo(centerX, centerY + 1.3);
+    ctx.lineTo(right - 0.7, top + 0.8);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawLocationIcon(ctx, centerX, centerY) {
+    ctx.save();
+    ctx.fillStyle = "#000";
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY + 4.2);
+    ctx.bezierCurveTo(centerX - 3.8, centerY + 0.4, centerX - 3.5, centerY - 4.2, centerX, centerY - 4.5);
+    ctx.bezierCurveTo(centerX + 3.5, centerY - 4.2, centerX + 3.8, centerY + 0.4, centerX, centerY + 4.2);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(centerX, centerY - 1.2, 1.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function dataUrlToBytes(dataUrl) {
+    const base64 = String(dataUrl).split(",")[1] || "";
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return bytes;
+  }
+
+  function receiptPdfAnnotations() {
+    return [
+      { left: 498, top: 16, right: RECEIPT_PAGE_WIDTH - 7, bottom: 31, uri: `tel:${INDIAN_STEEL_OWNER_MOBILE}` },
+      { left: 498, top: 31, right: RECEIPT_PAGE_WIDTH - 7, bottom: 46, uri: `mailto:${INDIAN_STEEL_RECEIPT_EMAIL}` },
+      { left: 6, top: 130, right: RECEIPT_PAGE_WIDTH - 6, bottom: 148, uri: INDIAN_STEEL_MAPS_URL }
+    ];
+  }
+
+  function buildSinglePagePdf({ imageBytes, imageWidth, imageHeight, annotations }) {
+    const encoder = new TextEncoder();
+    const chunks = [];
+    const offsets = [];
+    let length = 0;
+    const pushBytes = bytes => {
+      chunks.push(bytes);
+      length += bytes.length;
+    };
+    const pushText = text => pushBytes(encoder.encode(text));
+    const writeObject = (number, parts) => {
+      offsets[number] = length;
+      pushText(`${number} 0 obj\n`);
+      (Array.isArray(parts) ? parts : [parts]).forEach(part => typeof part === "string" ? pushText(part) : pushBytes(part));
+      pushText("\nendobj\n");
+    };
+    const annotationStart = 6;
+    const annotationRefs = annotations.map((_, index) => `${annotationStart + index} 0 R`).join(" ");
+    pushText("%PDF-1.4\n%\u00ff\u00ff\u00ff\u00ff\n");
+    writeObject(1, "<< /Type /Catalog /Pages 2 0 R >>");
+    writeObject(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+    writeObject(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${RECEIPT_PAGE_WIDTH} ${RECEIPT_PAGE_HEIGHT}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R /Annots [${annotationRefs}] >>`);
+    writeObject(4, [
+      `<< /Type /XObject /Subtype /Image /Width ${imageWidth} /Height ${imageHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imageBytes.length} >>\nstream\n`,
+      imageBytes,
+      "\nendstream"
+    ]);
+    const content = `q\n${RECEIPT_PAGE_WIDTH} 0 0 ${RECEIPT_PAGE_HEIGHT} 0 0 cm\n/Im0 Do\nQ`;
+    writeObject(5, `<< /Length ${encoder.encode(content).length} >>\nstream\n${content}\nendstream`);
+    annotations.forEach((annotation, index) => {
+      const left = numberForPdf(annotation.left);
+      const right = numberForPdf(annotation.right);
+      const bottom = numberForPdf(RECEIPT_PAGE_HEIGHT - annotation.bottom);
+      const top = numberForPdf(RECEIPT_PAGE_HEIGHT - annotation.top);
+      writeObject(annotationStart + index, `<< /Type /Annot /Subtype /Link /Rect [${left} ${bottom} ${right} ${top}] /Border [0 0 0] /A << /S /URI /URI (${pdfString(annotation.uri)}) >> >>`);
+    });
+    const objectCount = annotationStart + annotations.length - 1;
+    const xrefOffset = length;
+    pushText(`xref\n0 ${objectCount + 1}\n0000000000 65535 f \n`);
+    for (let index = 1; index <= objectCount; index += 1) {
+      pushText(`${String(offsets[index]).padStart(10, "0")} 00000 n \n`);
+    }
+    pushText(`trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+    const pdfBytes = new Uint8Array(length);
+    let offset = 0;
+    chunks.forEach(chunk => {
+      pdfBytes.set(chunk, offset);
+      offset += chunk.length;
+    });
+    return new Blob([pdfBytes], { type: "application/pdf" });
+  }
+
+  function numberForPdf(value) {
+    return Number(value || 0).toFixed(2).replace(/\.00$/, "");
+  }
+
+  function pdfString(value) {
+    return String(value || "").replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+  }
+
+  function cleanFilePart(value) {
+    return String(value || "").replace(/[\\/:*?"<>|#]+/g, "_").replace(/\s+/g, "_");
   }
 
   async function loginWithGoogle() {
@@ -2017,6 +2577,7 @@
     persistDriveConfig();
     sync.status = navigator.onLine ? "Ready" : "Offline ready";
     render();
+    void loadReceiptAssets();
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("./sw.js").catch(() => {});
     }
