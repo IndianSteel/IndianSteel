@@ -575,6 +575,7 @@
     const t = totals();
     const recent = data.entries.slice().sort((a, b) => entryRank(b) - entryRank(a)).slice(0, 8);
     const weekly = weeklySales();
+    const trend = dashboardTrend(t.todaySales);
     return `
       <main class="page">
         <section class="hero">
@@ -583,32 +584,96 @@
             <div class="hero-title">Dashboard</div>
             <button class="icon-button" data-screen="history" aria-label="History">${svg("bell")}</button>
           </div>
-          <h2>${esc(greeting())}, ${esc(data.businessProfile.name || "Indian Steel")}</h2>
+          <h2>${esc(greeting())}, ${esc(dashboardUserName())} 👋</h2>
           <p>Here's what's happening today.</p>
-          <div style="margin-top:12px">${syncBadge()}</div>
         </section>
-        <section class="card summary-main">
+        <section class="card summary-main dashboard-summary">
           <div class="section-title">
             <h2>Today's Summary</h2>
             <span class="muted">${esc(nowDate())}</span>
           </div>
           <span class="summary-label">Total Sales</span>
-          <div class="amount-xl">${esc(money(t.todaySales))}.00</div>
+          <div class="summary-amount-row">
+            <div class="amount-xl">${esc(money(t.todaySales))}.00</div>
+            <div class="trend-pill ${trend.value >= 0 ? "up" : "down"}">
+              <b>${trend.value >= 0 ? "↑" : "↓"} ${Math.abs(trend.value).toFixed(1)}%</b>
+              <span>vs Yesterday</span>
+            </div>
+          </div>
         </section>
-        <section class="grid-3">
+        <section class="grid-3 dashboard-stats">
           ${statCard("Monthly Sales", money(t.monthlySales), "wallet", "green", 'data-screen="reports" data-report="Monthly"')}
           ${statCard("Advances", money(t.advanceTotal), "card", "blue", 'data-settlement-open="advance"')}
           ${statCard("Due Payments", money(t.dueTotal), "card", "red", 'data-settlement-open="due"')}
         </section>
-        <section class="card section">
+        <section class="card section dashboard-section">
           <div class="section-title"><h2>Sales Overview (Last 7 Days)</h2><button class="link-button" data-screen="reports">View All</button></div>
-          <div class="chart">${weekly.map(item => `<div class="bar" title="${esc(item.label)}" style="height:${Math.max(8, Math.min(124, item.value / 5000 * 124))}px"></div>`).join("")}</div>
+          ${dashboardChart(weekly)}
         </section>
-        <section class="card section">
+        <section class="card section dashboard-section recent-section">
           <div class="section-title"><h2>Recent Entries</h2><button class="link-button" data-screen="history">${svg("sync")}</button></div>
-          ${recent.length ? recent.map((entry, index) => entryRow(entry, "recent") + (index < recent.length - 1 ? '<div class="divider"></div>' : "")).join("") : '<div class="empty">No entries yet.</div>'}
+          ${recent.length ? recent.map((entry, index) => dashboardEntryRow(entry) + (index < recent.length - 1 ? '<div class="divider"></div>' : "")).join("") : '<div class="empty">No entries yet.</div>'}
         </section>
       </main>`;
+  }
+
+  function dashboardUserName() {
+    const raw = session.name || session.email || data.businessProfile.name || "Indian Steel";
+    const name = String(raw).split("@")[0].split(/\s+/)[0] || "Indian Steel";
+    return titleCaseName(name);
+  }
+
+  function dashboardTrend(todaySales) {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const label = yesterday.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    const yesterdaySales = data.entries
+      .filter(entry => entry.dateLabel === label)
+      .reduce((sum, entry) => sum + dashboardSales(entry), 0);
+    if (yesterdaySales <= 0 && todaySales <= 0) return { value: 0 };
+    if (yesterdaySales <= 0) return { value: 100 };
+    return { value: ((todaySales - yesterdaySales) / yesterdaySales) * 100 };
+  }
+
+  function dashboardChart(items) {
+    const width = 340;
+    const height = 132;
+    const left = 28;
+    const right = 8;
+    const top = 8;
+    const bottom = 24;
+    const chartHeight = height - top - bottom;
+    const chartWidth = width - left - right;
+    const max = Math.max(1, ...items.map(item => Number(item.value || 0)));
+    const points = items.map((item, index) => {
+      const x = left + (items.length <= 1 ? chartWidth : (chartWidth / (items.length - 1)) * index);
+      const y = top + chartHeight - (Number(item.value || 0) / max) * chartHeight;
+      return { ...item, x, y };
+    });
+    const path = points.map((point, index) => `${index ? "L" : "M"}${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ");
+    const area = `${path} L${points[points.length - 1].x.toFixed(1)} ${top + chartHeight} L${left} ${top + chartHeight} Z`;
+    return `
+      <div class="dashboard-chart">
+        <svg viewBox="0 0 ${width} ${height}" aria-label="Sales overview chart" role="img">
+          <line class="chart-grid" x1="${left}" y1="${top}" x2="${width - right}" y2="${top}"></line>
+          <line class="chart-grid" x1="${left}" y1="${top + chartHeight / 2}" x2="${width - right}" y2="${top + chartHeight / 2}"></line>
+          <line class="chart-grid" x1="${left}" y1="${top + chartHeight}" x2="${width - right}" y2="${top + chartHeight}"></line>
+          <text class="chart-y" x="0" y="${top + 4}">${esc(compactAmount(max))}</text>
+          <text class="chart-y" x="0" y="${top + chartHeight / 2 + 4}">${esc(compactAmount(max / 2))}</text>
+          <text class="chart-y" x="0" y="${top + chartHeight + 4}">0</text>
+          <path class="chart-area" d="${area}"></path>
+          <path class="chart-line" d="${path}"></path>
+          ${points.map(point => `<circle class="chart-dot" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="2.4"></circle>`).join("")}
+          ${points.map(point => `<text class="chart-x" x="${point.x.toFixed(1)}" y="${height - 5}">${esc(point.shortLabel)}</text>`).join("")}
+        </svg>
+      </div>`;
+  }
+
+  function compactAmount(value) {
+    const amount = Number(value || 0);
+    if (amount >= 100000) return `${Math.round(amount / 100000)}L`;
+    if (amount >= 1000) return `${Math.round(amount / 1000)}K`;
+    return String(Math.round(amount));
   }
 
   function syncBadge() {
@@ -631,10 +696,32 @@
       const date = new Date();
       date.setDate(date.getDate() - i);
       const label = date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+      const shortLabel = date.toLocaleDateString("en-GB", { day: "2-digit" });
       const value = data.entries.filter(entry => entry.dateLabel === label).reduce((sum, entry) => sum + dashboardSales(entry), 0);
-      days.push({ label, value });
+      days.push({ label, shortLabel, value });
     }
     return days;
+  }
+
+  function dashboardEntryRow(entry) {
+    const due = saleDue(entry);
+    const amount = entry.kind === "Sale"
+      ? due > 0 ? `<span class="money">${esc(money(entry.amount))}</span> <span class="money red">- ${esc(money(due))}</span>` : `<span class="money">${esc(money(entry.amount))}</span>`
+      : `<span class="money">${esc(money(entry.amount || entry.paidAmount))}</span>`;
+    const key = entry.id;
+    const open = ui.recentOpen === key;
+    return `
+      <div class="dashboard-entry-row" data-toggle-entry="${esc(key)}" data-source="recent">
+        <span class="tile blue">${svg(entry.kind === "Payment" ? "card" : "chart")}</span>
+        <span class="row-main">
+          <b>${esc(entry.customer || "Walk-in Customer")}</b>
+          <span>${esc(entry.itemName || entry.subtitle || entry.kind)}</span>
+          <span>${esc(entry.subtitle || entry.invoiceNo)}</span>
+        </span>
+        <span class="dashboard-entry-meta">${amount}<small>${esc(entry.dateLabel)}<br>${esc(entry.timeLabel)}</small></span>
+        <button class="mini-action danger" data-delete-entry="${esc(entry.id)}" aria-label="Delete">${svg("delete")}</button>
+      </div>
+      ${open ? entryDetail(entry) : ""}`;
   }
 
   function entryRow(entry, source) {

@@ -1,4 +1,4 @@
-const CACHE_NAME = "indiansteel-pwa-20260430-3";
+const CACHE_NAME = "indiansteel-pwa-20260501-dashboard-1";
 const APP_SHELL = [
   "./",
   "./index.html",
