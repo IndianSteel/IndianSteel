@@ -9,6 +9,8 @@
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
   const DRIVE_FILE_NAME = "indiansteel_daily_sales_sync.json";
+  const GOOGLE_DRIVE_CLIENT_ID = "18090278328-492junshjuhu2nu4qai04vlgnihj273q.apps.googleusercontent.com";
+  const GOOGLE_DRIVE_FOLDER_ID = "1uqSmcaXlqAzGZ1QR0JctoORJsLNQrmy3";
   const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive openid email profile";
   const BUILT_IN_ADMINS = new Set(["indianssteel@gmail.com", "onlineuse0123@gmail.com"]);
   const DEFAULT_ITEMS = [
@@ -170,11 +172,10 @@
   }
 
   function normalizeDriveConfig(raw) {
-    const source = raw && typeof raw === "object" ? raw : {};
     return {
-      clientId: String(source.clientId || "").trim(),
-      folderId: String(source.folderId || "").trim(),
-      fileName: String(source.fileName || DRIVE_FILE_NAME).trim() || DRIVE_FILE_NAME
+      clientId: GOOGLE_DRIVE_CLIENT_ID,
+      folderId: GOOGLE_DRIVE_FOLDER_ID,
+      fileName: DRIVE_FILE_NAME
     };
   }
 
@@ -536,30 +537,38 @@
 
   function loginScreen() {
     const offlineNote = navigator.onLine
-      ? "Login once with approved Gmail. The PWA remembers this device and works offline after that."
-      : "Internet is needed for first login. After one login this PWA opens offline.";
+      ? "Login with your approved Gmail account to open dashboard, reports, settlements, and sync."
+      : "Internet is needed for first login. After one login this app opens offline.";
+    const statusText = sync.status && sync.status.toLowerCase().includes("failed")
+      ? "Google login failed. Please try again."
+      : sync.status;
     return `
-      <main class="login-screen">
-        <section class="card login-card">
-          <img class="login-logo" src="./icons/indian-steel-logo.png" alt="Indian Steel">
-          <h1>IndianSteel</h1>
-          ${driveSetupBox()}
-          <p>${esc(offlineNote)}</p>
-          <button class="primary-button" data-action="google-login">${driveConfigured() ? "Login with Google" : "Save Sync Setup First"}</button>
-          ${hasLocalBusinessData() ? '<button class="secondary-button" data-action="continue-local">Open Offline Data</button>' : ""}
-          <p class="muted">Offline entries are saved on this phone and sync to Drive when internet returns.</p>
-          ${ui.error ? `<div class="message error">${esc(ui.error)}</div>` : ""}
+      <main class="login-screen apk-login">
+        <div class="login-blue-panel"></div>
+        <section class="apk-login-content">
+          <p class="login-kicker">Welcome to</p>
+          <h1>Indian Steel</h1>
+          <div class="login-logo-ring">
+            <img class="login-logo" src="./icons/indian-steel-logo.png" alt="Indian Steel">
+          </div>
+          <section class="card login-card">
+            <h2>Secure Business Access</h2>
+            <p>${esc(offlineNote)}</p>
+            <button class="primary-button google-login-button" data-action="google-login">
+              ${svg("user")}
+              <span>Login with Gmail</span>
+            </button>
+            ${hasLocalBusinessData() ? '<button class="secondary-button" data-action="continue-local">Open Offline Data</button>' : ""}
+            <p class="login-status ${statusText && statusText.toLowerCase().includes("failed") ? "error-text" : ""}">${esc(ui.error || statusText || "Ready")}</p>
+          </section>
+          <p class="developer-label">Developed By</p>
+          <p class="developer-name">Ceres Canopus Private Limited</p>
         </section>
       </main>`;
   }
 
   function driveSetupBox() {
-    return `
-      <div class="form-grid" style="margin-top:14px">
-        <input class="field" data-config="clientId" placeholder="Google Client ID" value="${esc(driveConfig.clientId || "")}">
-        <input class="field" data-config="folderId" placeholder="Drive Folder ID" value="${esc(driveConfig.folderId || "")}">
-        <button class="secondary-button" data-action="save-drive-config">${driveConfigured() ? "UPDATE SYNC SETUP" : "SAVE SYNC SETUP"}</button>
-      </div>`;
+    return "";
   }
 
   function dashboardScreen() {
@@ -1055,9 +1064,6 @@
               <p class="muted">${esc(signedText)}</p>
               <p class="muted">${esc(sync.status)}</p>
               <div class="form-grid">
-                <input class="field" data-config="clientId" placeholder="Google Client ID" value="${esc(driveConfig.clientId || "")}">
-                <input class="field" data-config="folderId" placeholder="Drive Folder ID" value="${esc(driveConfig.folderId || "")}">
-                <button class="secondary-button" data-action="save-drive-config">${driveConfigured() ? "UPDATE SYNC SETUP" : "SAVE SYNC SETUP"}</button>
                 <button class="primary-button" data-action="sync-now">${sync.busy ? "Syncing Drive..." : "Sync with Drive"}</button>
                 <button class="secondary-button" data-action="google-login">${session.email ? "Reconnect Google" : "Login with Google"}</button>
                 ${session.email || session.localOnly ? '<button class="secondary-button" data-action="logout">Logout on this device</button>' : ""}
@@ -1290,16 +1296,10 @@
     event.preventDefault();
     if (action === "google-login") return void loginWithGoogle();
     if (action === "save-drive-config") {
-      const clientInput = document.querySelector('[data-config="clientId"]');
-      const folderInput = document.querySelector('[data-config="folderId"]');
-      driveConfig = normalizeDriveConfig({
-        clientId: clientInput ? clientInput.value : driveConfig.clientId,
-        folderId: folderInput ? folderInput.value : driveConfig.folderId,
-        fileName: driveConfig.fileName || DRIVE_FILE_NAME
-      });
+      driveConfig = normalizeDriveConfig();
       persistDriveConfig();
-      sync.status = driveConfigured() ? "Sync setup saved" : "Sync setup required";
-      ui.error = driveConfigured() ? "" : "Google Client ID and Drive Folder ID are required.";
+      sync.status = driveConfigured() ? "Sync ready" : "Sync setup required";
+      ui.error = driveConfigured() ? "" : "Google sync is not configured in this app.";
     }
     if (action === "continue-local") {
       session.localOnly = true;
@@ -1545,7 +1545,7 @@
   async function loginWithGoogle() {
     ui.error = "";
     if (!driveConfigured()) {
-      ui.error = "Google Client ID and Drive Folder ID are required.";
+      ui.error = "Google sync is not configured in this app.";
       scheduleRender();
       return;
     }
@@ -1664,7 +1664,7 @@
     }
     if (!driveConfigured()) {
       sync.status = "Sync setup required";
-      if (manual) ui.error = "Google Client ID and Drive Folder ID are required.";
+      if (manual) ui.error = "Google sync is not configured in this app.";
       scheduleRender();
       return;
     }
@@ -1804,6 +1804,7 @@
     data = normalizeData(savedData);
     session = savedSession || {};
     driveConfig = normalizeDriveConfig(savedDriveConfig);
+    persistDriveConfig();
     sync.status = navigator.onLine ? "Ready" : "Offline ready";
     render();
     if ("serviceWorker" in navigator) {
