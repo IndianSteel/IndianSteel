@@ -8,7 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-bottom-nav-ios-apk-50";
+  const APP_BUILD_VERSION = "20260501-ios-google-login-apk-51";
   const THEME_COLORS = {
     light: "#0d5bdd",
     dark: "#0b1f46"
@@ -63,6 +63,7 @@
   let driveConfig = {};
   let googleTokenClient = null;
   let googleScriptPromise = null;
+  let googleIdentityLoading = false;
   let saveTimer = 0;
   let renderTimer = 0;
   let syncTimer = 0;
@@ -976,12 +977,21 @@
   }
 
   function loginScreen() {
+    const googleReady = googleIdentityReady();
+    const loginPreparing = navigator.onLine && driveConfigured() && !googleReady && googleIdentityLoading;
     const offlineNote = navigator.onLine
       ? "Login with your approved Gmail account to open dashboard, reports, settlements, and sync."
       : "Internet is needed for first login. After one login this app opens offline.";
     const statusText = sync.status && sync.status.toLowerCase().includes("failed")
       ? "Google login failed. Please try again."
-      : sync.status;
+      : loginPreparing && !ui.error
+        ? "Preparing Google login"
+        : sync.status;
+    const loginText = ui.loginBusy
+      ? "Connecting..."
+      : loginPreparing
+        ? "Preparing Google..."
+        : "Login with Gmail";
     return `
       <main class="login-screen apk-login">
         <div class="login-blue-panel"></div>
@@ -994,9 +1004,9 @@
           <section class="card login-card">
             <h2>Secure Business Access</h2>
             <p>${esc(offlineNote)}</p>
-            <button class="primary-button google-login-button" data-action="google-login" ${ui.loginBusy ? "disabled" : ""}>
+            <button class="primary-button google-login-button" data-action="google-login" ${ui.loginBusy || loginPreparing ? "disabled" : ""}>
               ${svg("user")}
-              <span>${ui.loginBusy ? "Connecting..." : "Login with Gmail"}</span>
+              <span>${loginText}</span>
             </button>
             <p class="login-status ${statusText && statusText.toLowerCase().includes("failed") ? "error-text" : ""}">${esc(ui.error || statusText || "Ready")}</p>
           </section>
@@ -5113,22 +5123,27 @@
 
   async function loginWithGoogle() {
     if (ui.loginBusy) return;
-    ui.loginBusy = true;
-    ui.error = "";
-    sync.status = "Opening Google login";
-    scheduleRender();
     if (!driveConfigured()) {
       ui.error = "Google sync is not configured in this app.";
-      ui.loginBusy = false;
       scheduleRender();
       return;
     }
     if (!navigator.onLine) {
       ui.error = "Internet is needed for Google login.";
-      ui.loginBusy = false;
       scheduleRender();
       return;
     }
+    if (!googleIdentityReady()) {
+      ui.error = "";
+      sync.status = "Preparing Google login";
+      void prepareGoogleLogin();
+      scheduleRender();
+      return;
+    }
+    ui.loginBusy = true;
+    ui.error = "";
+    sync.status = "Opening Google login";
+    scheduleRender();
     try {
       const token = await requestAccessToken({ prompt: "select_account" });
       sync.token = token.access_token;
@@ -5166,8 +5181,27 @@
     return BUILT_IN_ADMINS.has(normalized) || rules.some(rule => String(rule.email || "").toLowerCase() === normalized);
   }
 
+  function googleIdentityReady() {
+    return Boolean(window.google && google.accounts && google.accounts.oauth2);
+  }
+
+  async function prepareGoogleLogin() {
+    if (!driveConfigured() || !navigator.onLine || googleIdentityReady() || googleIdentityLoading) return;
+    googleIdentityLoading = true;
+    try {
+      await loadGoogleIdentity();
+      if (sync.status === "Preparing Google login") sync.status = "Ready";
+    } catch (error) {
+      ui.error = error.message || "Unable to load Google login.";
+      sync.status = "Google login failed";
+    } finally {
+      googleIdentityLoading = false;
+      scheduleRender();
+    }
+  }
+
   async function loadGoogleIdentity() {
-    if (window.google && google.accounts && google.accounts.oauth2) return;
+    if (googleIdentityReady()) return;
     if (googleScriptPromise) return googleScriptPromise;
     googleScriptPromise = new Promise((resolve, reject) => {
       const script = document.createElement("script");
@@ -5175,23 +5209,48 @@
       script.async = true;
       script.defer = true;
       script.onload = resolve;
-      script.onerror = () => reject(new Error("Unable to load Google login."));
+      script.onerror = () => {
+        googleScriptPromise = null;
+        reject(new Error("Unable to load Google login."));
+      };
       document.head.appendChild(script);
     });
     return googleScriptPromise;
   }
 
   async function requestAccessToken({ prompt = "", hint = "" } = {}) {
-    await loadGoogleIdentity();
+    if (!googleIdentityReady()) {
+      await loadGoogleIdentity();
+      if (!googleIdentityReady()) throw new Error("Google login is not ready yet. Please tap Login with Gmail again.");
+    }
     return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        callback(value);
+      };
+      const timeoutId = setTimeout(() => {
+        finish(reject, new Error("Google login did not open. Please tap Login with Gmail again."));
+      }, 30000);
       googleTokenClient = google.accounts.oauth2.initTokenClient({
         client_id: driveConfig.clientId,
         scope: DRIVE_SCOPE,
         include_granted_scopes: true,
         callback: response => {
-          if (response.error) reject(new Error(response.error_description || response.error));
-          else if (!response.access_token) reject(new Error("Google login did not return an access token."));
-          else resolve(response);
+          if (response.error) finish(reject, new Error(response.error_description || response.error));
+          else if (!response.access_token) finish(reject, new Error("Google login did not return an access token."));
+          else finish(resolve, response);
+        },
+        error_callback: error => {
+          const type = String(error && error.type || "");
+          const message = type === "popup_failed_to_open"
+            ? "Google login popup was blocked. Please tap Login with Gmail again."
+            : type === "popup_closed"
+              ? "Google login was closed before account selection."
+              : "Google login could not open. Please try again.";
+          finish(reject, new Error(message));
         }
       });
       googleTokenClient.requestAccessToken({
@@ -5476,6 +5535,7 @@
     persistDriveConfig();
     sync.status = navigator.onLine ? "Ready" : "Offline ready";
     setupEntryDropdownDismissal();
+    if (!session.email) void prepareGoogleLogin();
     render();
     void loadReceiptAssets();
     if ("serviceWorker" in navigator) {
@@ -5486,6 +5546,7 @@
     }
     window.addEventListener("online", () => {
       sync.status = "Back online";
+      if (!session.email) void prepareGoogleLogin();
       queueSync("online");
       scheduleRender();
     });
