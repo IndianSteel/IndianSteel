@@ -1843,8 +1843,8 @@ select {
 .settlement-popup {
   width: min(100%, 456px);
   min-height: 320px;
-  height: calc(100dvh - var(--nav-height) - var(--safe-bottom) - 32px);
-  max-height: calc(100dvh - var(--nav-height) - var(--safe-bottom) - 32px);
+  height: calc(var(--app-stable-height, 100dvh) - var(--nav-height) - var(--safe-bottom) - 32px);
+  max-height: calc(var(--app-stable-height, 100dvh) - var(--nav-height) - var(--safe-bottom) - 32px);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
@@ -1852,6 +1852,15 @@ select {
   border: 1px solid var(--line);
   border-radius: 14px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, .24);
+}
+
+.advance-entry-popup {
+  position: relative;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.advance-entry-popup.account-open {
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .settlement-popup-head {
@@ -2018,7 +2027,8 @@ select {
 }
 
 .settlement-pay-mode {
-  min-height: 104px;
+  min-height: 82px;
+  cursor: pointer;
 }
 
 .settlement-pay-mode > span {
@@ -2035,11 +2045,103 @@ select {
 }
 
 .settlement-pay-mode input {
-  height: 36px;
-  text-align: center;
-  font-size: 18px;
-  line-height: 22px;
+  height: 40px;
+  text-align: left;
+  font-size: 21px !important;
+  line-height: 25px;
   font-weight: 900;
+}
+
+.popup-account-panel {
+  display: grid;
+  gap: 8px;
+  margin: 10px -10px -10px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+}
+
+.popup-account-panel em {
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 15px;
+  font-style: normal;
+  font-weight: 600;
+  text-align: center;
+}
+
+.popup-account-pill {
+  height: 30px;
+  margin: 0;
+  padding: 0 8px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 15px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  font-size: 16px !important;
+  font-weight: 900;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popup-account-options {
+  max-height: 174px;
+  overflow: auto;
+  margin: 0 -4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.popup-account-option {
+  min-height: 34px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+}
+
+.popup-account-option > button:first-child,
+.popup-account-action {
+  min-width: 0;
+  min-height: 34px;
+  padding: 8px 12px;
+  background: var(--card);
+  color: var(--ink);
+  text-align: left;
+  font-size: 12px;
+  line-height: 15px;
+  font-weight: 900;
+}
+
+.popup-account-delete {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  color: var(--red);
+  background: var(--card);
+}
+
+.popup-account-delete svg {
+  width: 17px;
+  height: 17px;
+}
+
+.popup-account-draft {
+  height: 34px;
+  margin: 10px;
+  width: calc(100% - 20px);
+}
+
+.popup-account-action {
+  width: 100%;
+  color: var(--blue);
+  border-bottom: 1px solid var(--line);
 }
 
 .account-select {
@@ -2107,6 +2209,27 @@ select {
   background: var(--bg);
 }
 
+.advance-entry-popup .settlement-popup-actions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  min-height: 96px;
+  padding: 18px 14px 16px;
+  background: linear-gradient(to bottom, rgba(245, 247, 251, 0), var(--bg) 36%, var(--bg));
+}
+
+.advance-entry-popup.account-open .settlement-popup-body {
+  padding-bottom: 20px;
+}
+
+.advance-entry-popup.account-open .settlement-popup-actions {
+  position: static;
+  min-height: 64px;
+  padding: 8px 14px 14px;
+  background: var(--bg);
+}
+
 .settlement-save-button {
   width: 152px;
   height: 40px;
@@ -2126,8 +2249,15 @@ select {
 }
 
 .due-edit-popup {
+  min-height: 0;
+  height: auto;
+  max-height: calc(var(--app-stable-height, 100dvh) - var(--nav-height) - var(--safe-bottom) - 32px);
   border-radius: 10px;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+.due-edit-popup.account-open .due-popup-body {
+  max-height: 430px;
 }
 
 .due-popup-head {
@@ -2190,8 +2320,20 @@ select {
 }
 
 .due-popup-body {
-  max-height: 390px;
-  padding-bottom: 28px;
+  max-height: 230px;
+  padding: 10px 12px;
+}
+
+.due-popup-head .settlement-popup-close {
+  width: 36px;
+  height: 36px;
+  font-size: 15px;
+  line-height: 17px;
+}
+
+.due-save {
+  color: var(--ink);
+  border-color: var(--ink);
 }
 
 .settlement-release-overlay {
@@ -2243,15 +2385,34 @@ select {
   font-weight: 700;
 }
 
+.release-head .settlement-popup-close {
+  width: 34px;
+  height: 34px;
+}
+
 .release-body {
   display: grid;
   gap: 12px;
+  justify-items: center;
   padding: 14px;
   background: var(--bg);
 }
 
 .release-save {
+  width: 160px;
+  height: 38px;
   margin: 0 auto;
+}
+
+.release-body .due-summary-strip,
+.release-body .entry-sketch-field,
+.release-body .message {
+  width: 100%;
+}
+
+.release-body .entry-sketch-label {
+  width: 100%;
+  text-align: center;
 }
 
 .message-dialog-overlay {
@@ -2285,8 +2446,13 @@ select {
 
 @supports (height: 100svh) {
   .settlement-popup {
-    height: calc(100svh - var(--nav-height) - var(--safe-bottom) - 32px);
-    max-height: calc(100svh - var(--nav-height) - var(--safe-bottom) - 32px);
+    height: calc(var(--app-stable-height, 100svh) - var(--nav-height) - var(--safe-bottom) - 32px);
+    max-height: calc(var(--app-stable-height, 100svh) - var(--nav-height) - var(--safe-bottom) - 32px);
+  }
+
+  .due-edit-popup {
+    height: auto;
+    max-height: calc(var(--app-stable-height, 100svh) - var(--nav-height) - var(--safe-bottom) - 32px);
   }
 }
 

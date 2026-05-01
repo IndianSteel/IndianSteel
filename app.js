@@ -8,7 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-settlements-apk-32";
+  const APP_BUILD_VERSION = "20260501-settlements-apk-36";
   const DRIVE_FILE_NAME = "indiansteel_daily_sales_sync.json";
   const GOOGLE_DRIVE_CLIENT_ID = "18090278328-i9k2i3e78062hbfhpu7pkhe1s7uvuhql.apps.googleusercontent.com";
   const GOOGLE_DRIVE_FOLDER_ID = "1uqSmcaXlqAzGZ1QR0JctoORJsLNQrmy3";
@@ -65,6 +65,7 @@
   let receiptAssetsPromise = null;
   let entryDropdownPointer = null;
   let entryDropdownDismissalInstalled = false;
+  let stableViewportHeight = 0;
   const ENTRY_DROPDOWN_TAP_SLOP = 8;
 
   const ui = {
@@ -883,6 +884,38 @@
 
   function applyThemeMode() {
     document.documentElement.dataset.theme = appThemeMode();
+  }
+
+  function scrollPopupAccountOptionsIntoView() {
+    setTimeout(() => {
+      const options = document.querySelector(".popup-account-options");
+      if (options) options.scrollIntoView({ block: "end", inline: "nearest" });
+    }, 80);
+  }
+
+  function setupStableViewportHeight() {
+    const root = document.documentElement;
+    const update = () => {
+      const viewport = window.visualViewport;
+      const layoutHeight = Math.round(window.innerHeight || root.clientHeight || 0);
+      const visualHeight = viewport ? Math.round(viewport.height || 0) : layoutHeight;
+      const keyboardGap = viewport ? Math.max(0, layoutHeight - Math.round((viewport.height || 0) + (viewport.offsetTop || 0))) : 0;
+      const keyboardOpen = keyboardGap > 100;
+      if (!stableViewportHeight) stableViewportHeight = layoutHeight || visualHeight;
+      if (!keyboardOpen) stableViewportHeight = Math.max(layoutHeight, visualHeight, stableViewportHeight);
+      root.style.setProperty("--app-stable-height", `${Math.max(stableViewportHeight, 320)}px`);
+      root.style.setProperty("--app-keyboard-bottom", `${keyboardGap}px`);
+    };
+    update();
+    window.addEventListener("resize", update, { passive: true });
+    window.addEventListener("orientationchange", () => {
+      stableViewportHeight = 0;
+      setTimeout(update, 120);
+    }, { passive: true });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", update, { passive: true });
+      window.visualViewport.addEventListener("scroll", update, { passive: true });
+    }
   }
 
   function totals() {
@@ -1883,7 +1916,7 @@
     const total = amountValue(draft.total);
     return `
       <div class="overlay settlement-popup-overlay" data-overlay-close="advance">
-        <section class="settlement-popup advance-entry-popup" data-sheet>
+        <section class="settlement-popup advance-entry-popup ${draft.accountOpen ? "account-open" : ""}" data-sheet>
           <div class="settlement-popup-head">
             <span></span>
             <b>ADVANCE PAYMENT ENTRY</b>
@@ -1933,7 +1966,7 @@
     const updatedPaid = Math.min(sale.amount, Number(sale.paidAmount || 0) + payment);
     return `
       <div class="overlay settlement-popup-overlay due-popup-overlay" data-overlay-close="due">
-        <section class="settlement-popup due-edit-popup" data-sheet>
+        <section class="settlement-popup due-edit-popup ${draft.accountOpen ? "account-open" : ""}" data-sheet>
           <div class="due-popup-head">
             <div class="due-popup-title">${esc(summary.name.toUpperCase())}</div>
             <div class="due-popup-phone">${esc(summary.mobile || "-")}</div>
@@ -1947,9 +1980,6 @@
           <div class="settlement-popup-body due-popup-body">
             ${settlementPaymentEditor("due", draft, amountValue(draft.total), due)}
             ${ui.error ? `<div class="message error">${esc(ui.error)}</div>` : ""}
-            <h3 class="detail-heading payment-heading">Item Purchased:</h3>
-            <div class="detail-item-list">${(sale.saleItems.length ? sale.saleItems : [{ product: sale.itemName || "Sale Item", quantity: "", rate: "", amount: purchaseDisplayAmount(sale) }]).map((item, index) => detailItemBlock(item, index)).join("")}</div>
-            ${sale.duePaymentHistory.length ? `<h3 class="detail-heading payment-heading">History:</h3>${detailHistoryCard(entryDetailSummary(sale))}` : ""}
           </div>
           <div class="settlement-popup-actions">
             <button class="settlement-save-button due-save" data-action="save-due">SAVE</button>
@@ -1977,13 +2007,34 @@
   function settlementPayMode(prefix, label, key, value, account) {
     const active = amountValue(value) > 0;
     const accountKey = `${key}Account`;
+    const draft = prefix === "advance" ? ui.advanceDraft : ui.dueDraft;
+    const expanded = active && draft && draft.activeMode === key;
+    const accountOpen = expanded && draft.accountOpen === key;
     return `
-      <div class="pay-mode settlement-pay-mode ${active ? "active" : "disabled"}">
+      <div class="pay-mode settlement-pay-mode ${active ? "active" : "disabled"} ${expanded ? "expanded" : ""}" data-popup-pay-mode="${esc(prefix)}:${esc(key)}">
         <span>${esc(label)}</span>
         <input class="field" data-${prefix}-field="${esc(key)}" inputmode="decimal" value="${esc(value)}" placeholder="0">
-        <select class="account-select" data-${prefix}-account="${esc(accountKey)}" ${active ? "" : "disabled"}>
-          ${data.accountOptions.map(option => `<option value="${esc(option)}" ${option === account ? "selected" : ""}>${esc(option)}</option>`).join("")}
-        </select>
+        ${expanded ? `
+          <div class="popup-account-panel">
+            <em>ACCOUNT</em>
+            <button class="popup-account-pill" type="button" data-popup-account-toggle="${esc(prefix)}:${esc(key)}">${esc(String(account || "Indian Steel").toUpperCase())}</button>
+            ${accountOpen ? popupAccountOptions(prefix, accountKey, draft) : ""}
+          </div>` : ""}
+      </div>`;
+  }
+
+  function popupAccountOptions(prefix, accountKey, draft) {
+    const editMode = Boolean(draft.accountEditMode);
+    return `
+      <div class="popup-account-options">
+        ${data.accountOptions.map(option => `
+          <div class="popup-account-option">
+            <button type="button" data-popup-account-select="${esc(prefix)}:${esc(accountKey)}" data-account-value="${esc(option)}">${esc(option)}</button>
+            ${editMode ? `<button class="popup-account-delete" type="button" data-popup-account-delete="${esc(option)}" aria-label="Delete ${esc(option)}">${svg("delete")}</button>` : ""}
+          </div>`).join("")}
+        ${draft.accountAddMode ? `<input class="field popup-account-draft" data-popup-account-draft="${esc(prefix)}" value="${esc(draft.accountDraft || "")}" placeholder="Account name">` : ""}
+        <button class="popup-account-action" type="button" data-popup-account-action="${esc(prefix)}:add">+ Add</button>
+        <button class="popup-account-action" type="button" data-popup-account-action="${esc(prefix)}:edit">${editMode ? "Done" : "Edit"}</button>
       </div>`;
   }
 
@@ -2008,7 +2059,7 @@
           </div>
           <div class="release-body">
             ${dueSummaryStrip("Remaining Advance", numberText(total), true)}
-            <label class="entry-sketch-label">Release Amount</label>
+            <label class="entry-sketch-label">RELEASE AMOUNT</label>
             <input class="field entry-sketch-field centered" data-release-amount inputmode="decimal" value="${esc(draft.amount || "")}" placeholder="0">
             ${ui.error ? `<div class="message error">${esc(ui.error)}</div>` : ""}
             <button class="settlement-save-button release-save" data-action="save-advance-release">PROCEED</button>
@@ -3080,6 +3131,80 @@
       if (!ui.dueDraft) return;
       ui.dueDraft[el.dataset.dueAccount] = el.value;
     }));
+    document.querySelectorAll("[data-popup-pay-mode]").forEach(el => el.addEventListener("click", event => {
+      if (event.target.closest("input, select, button")) return;
+      const [prefix, key] = String(el.dataset.popupPayMode || "").split(":");
+      const draft = prefix === "advance" ? ui.advanceDraft : prefix === "due" ? ui.dueDraft : null;
+      if (!draft || amountValue(draft[key]) <= 0) return;
+      draft.activeMode = draft.activeMode === key ? "" : key;
+      draft.accountOpen = "";
+      draft.accountEditMode = false;
+      draft.accountAddMode = false;
+      draft.accountDraft = "";
+      scheduleRender();
+    }));
+    document.querySelectorAll("[data-popup-account-toggle]").forEach(el => el.addEventListener("click", event => {
+      event.stopPropagation();
+      const [prefix, key] = String(el.dataset.popupAccountToggle || "").split(":");
+      const draft = prefix === "advance" ? ui.advanceDraft : prefix === "due" ? ui.dueDraft : null;
+      if (!draft) return;
+      draft.accountOpen = draft.accountOpen === key ? "" : key;
+      draft.accountEditMode = false;
+      draft.accountAddMode = false;
+      draft.accountDraft = "";
+      scheduleRender();
+      if (draft.accountOpen) scrollPopupAccountOptionsIntoView();
+    }));
+    document.querySelectorAll("[data-popup-account-select]").forEach(el => el.addEventListener("click", event => {
+      event.stopPropagation();
+      const [prefix, accountKey] = String(el.dataset.popupAccountSelect || "").split(":");
+      const draft = prefix === "advance" ? ui.advanceDraft : prefix === "due" ? ui.dueDraft : null;
+      if (!draft || draft.accountEditMode) return;
+      draft[accountKey] = el.dataset.accountValue || draft[accountKey] || "Indian Steel";
+      draft.accountOpen = "";
+      scheduleRender();
+    }));
+    document.querySelectorAll("[data-popup-account-action]").forEach(el => el.addEventListener("click", event => {
+      event.stopPropagation();
+      const [prefix, action] = String(el.dataset.popupAccountAction || "").split(":");
+      const draft = prefix === "advance" ? ui.advanceDraft : prefix === "due" ? ui.dueDraft : null;
+      if (!draft) return;
+      if (action === "add") {
+        if (draft.accountAddMode) {
+          const name = titleCaseName(draft.accountDraft || "").trim();
+          if (name && !data.accountOptions.some(option => option.toLowerCase() === name.toLowerCase())) {
+            data.accountOptions.push(name);
+            persist({ syncAfter: false });
+          }
+          draft.accountDraft = "";
+        }
+        draft.accountAddMode = !draft.accountAddMode;
+      }
+      if (action === "edit") {
+        draft.accountEditMode = !draft.accountEditMode;
+      }
+      scheduleRender();
+      if (draft.accountOpen) scrollPopupAccountOptionsIntoView();
+    }));
+    document.querySelectorAll("[data-popup-account-draft]").forEach(el => el.addEventListener("input", event => {
+      event.stopPropagation();
+      const draft = el.dataset.popupAccountDraft === "advance" ? ui.advanceDraft : ui.dueDraft;
+      if (!draft) return;
+      draft.accountDraft = titleCaseName(el.value);
+      if (el.value !== draft.accountDraft) el.value = draft.accountDraft;
+    }));
+    document.querySelectorAll("[data-popup-account-delete]").forEach(el => el.addEventListener("click", event => {
+      event.stopPropagation();
+      const option = el.dataset.popupAccountDelete || "";
+      data.accountOptions = data.accountOptions.filter(item => item !== option);
+      if (!data.accountOptions.length) data.accountOptions = ["Indian Steel"];
+      [ui.advanceDraft, ui.dueDraft].filter(Boolean).forEach(draft => {
+        if (draft.cashAccount === option) draft.cashAccount = data.accountOptions[0];
+        if (draft.onlineAccount === option) draft.onlineAccount = data.accountOptions[0];
+      });
+      persist({ syncAfter: false });
+      scheduleRender();
+    }));
     const releaseAmount = document.querySelector("[data-release-amount]");
     if (releaseAmount) releaseAmount.addEventListener("input", () => {
       if (!ui.advanceReleaseDraft) ui.advanceReleaseDraft = { amount: "" };
@@ -3377,6 +3502,11 @@
       cash: "0",
       online: "0",
       lastEdited: "cash",
+      activeMode: "",
+      accountOpen: "",
+      accountEditMode: false,
+      accountAddMode: false,
+      accountDraft: "",
       cashAccount: data.accountOptions[0] || "Indian Steel",
       onlineAccount: data.accountOptions[0] || "Indian Steel"
     };
@@ -3388,6 +3518,11 @@
       cash: "0",
       online: "0",
       lastEdited: "cash",
+      activeMode: "",
+      accountOpen: "",
+      accountEditMode: false,
+      accountAddMode: false,
+      accountDraft: "",
       cashAccount: data.accountOptions[0] || "Indian Steel",
       onlineAccount: data.accountOptions[0] || "Indian Steel"
     };
@@ -3402,6 +3537,8 @@
     if (key === "cash" || key === "online" || key === "total") value = cleanAmount(value);
     ui.advanceDraft[key] = value;
     if (key === "cash" || key === "online") ui.advanceDraft.lastEdited = key;
+    if ((key === "cash" || key === "online") && ui.advanceDraft.activeMode === key && amountValue(value) <= 0) ui.advanceDraft.activeMode = "";
+    if ((key === "cash" || key === "online") && ui.advanceDraft.accountOpen === key && amountValue(value) <= 0) ui.advanceDraft.accountOpen = "";
     if (el.value !== value) el.value = value;
     if (key === "cash" || key === "online" || key === "total") balanceAdvanceDraft(key);
     ui.error = "";
@@ -3436,6 +3573,8 @@
     let value = cleanAmount(el.value);
     ui.dueDraft[key] = value;
     if (key === "cash" || key === "online") ui.dueDraft.lastEdited = key;
+    if ((key === "cash" || key === "online") && ui.dueDraft.activeMode === key && amountValue(value) <= 0) ui.dueDraft.activeMode = "";
+    if ((key === "cash" || key === "online") && ui.dueDraft.accountOpen === key && amountValue(value) <= 0) ui.dueDraft.accountOpen = "";
     if (el.value !== value) el.value = value;
     balanceDueDraft(key);
     ui.error = "";
@@ -5163,6 +5302,7 @@
     data = normalizeData(savedData);
     session = savedSession || {};
     driveConfig = normalizeDriveConfig(savedDriveConfig);
+    setupStableViewportHeight();
     applyThemeMode();
     if (session.email) recordUserActivity(session.email);
     persistDriveConfig();
