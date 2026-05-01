@@ -19,6 +19,9 @@
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --status-top: max(28px, var(--safe-top));
+  --header-title-top: 10px;
+  --header-title-icon-top: 4px;
+  --header-title-row-height: 42px;
   --system-nav-lift: 0px;
   --bottom-nav-space: calc(var(--nav-height) + var(--system-nav-lift));
 }
@@ -173,11 +176,11 @@ select {
   padding: var(--status-top) 16px 0;
   display: grid;
   grid-template-columns: 1fr;
-  align-items: center;
+  align-items: start;
 }
 
 .blue-header h1 {
-  margin: 0;
+  margin: var(--header-title-top) 0 0;
   text-align: center;
   font-size: 18px;
   line-height: 22px;
@@ -202,7 +205,7 @@ select {
   display: grid;
   grid-template-columns: 34px 1fr 30px;
   align-items: center;
-  height: 54px;
+  height: var(--header-title-row-height);
 }
 
 .hero-top .icon-button:first-child svg {
@@ -1253,6 +1256,7 @@ select {
 .settlement-header-action {
   width: 34px;
   height: 34px;
+  margin-top: var(--header-title-icon-top);
   display: grid;
   place-items: center;
   border-radius: 9px;
@@ -2887,14 +2891,14 @@ select {
   padding: var(--status-top) 16px 0;
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) 36px;
-  align-items: center;
+  align-items: start;
   background: var(--header-blue);
   color: #fff;
 }
 
 .profile-edit-header h1 {
   grid-column: 2;
-  margin: 0;
+  margin: 11px 0 0;
   text-align: center;
   font-size: 17px;
   line-height: 20px;
@@ -2904,6 +2908,7 @@ select {
 .profile-back-button {
   width: 36px;
   height: 36px;
+  margin-top: 3px;
   display: grid;
   place-items: center;
   background: transparent;

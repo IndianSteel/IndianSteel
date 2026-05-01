@@ -1,16 +1,16 @@
-const CACHE_NAME = "indiansteel-pwa-20260501-ios-google-login-apk-51";
+const CACHE_NAME = "indiansteel-pwa-20260501-title-status-row-apk-52";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
-  "./styles.css?v=20260501-ios-google-login-apk-51",
+  "./styles.css?v=20260501-title-status-row-apk-52",
   "./app.js",
-  "./app.js?v=20260501-ios-google-login-apk-51",
+  "./app.js?v=20260501-title-status-row-apk-52",
   "./manifest.webmanifest",
-  "./manifest.webmanifest?v=20260501-ios-google-login-apk-51",
+  "./manifest.webmanifest?v=20260501-title-status-row-apk-52",
   "./icons/icon.svg",
   "./icons/indian-steel-logo.png",
-  "./icons/indian-steel-logo.png?v=20260501-ios-google-login-apk-51",
+  "./icons/indian-steel-logo.png?v=20260501-title-status-row-apk-52",
   "./icons/whatsapp-icon.png",
   "./icons/receipt-logo.png",
   "./icons/receipt-stamp-signature.png"
