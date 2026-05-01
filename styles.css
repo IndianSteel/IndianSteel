@@ -54,8 +54,8 @@
 
 :root[data-pwa-installed="true"][data-pwa-platform="android"],
 :root.android-pwa-header {
-  --status-top: 6px;
-  --header-title-top: 4px;
+  --status-top: 0px;
+  --header-title-top: 0px;
   --header-title-icon-top: 0px;
 }
 
@@ -66,6 +66,34 @@
 
 :root.android-pwa-header .app-shell {
   box-shadow: none;
+}
+
+:root.android-pwa-header,
+:root.android-pwa-header body,
+:root.android-pwa-header .app-shell,
+:root.android-pwa-header .page,
+:root.android-pwa-header .page-scroll {
+  overscroll-behavior: none;
+}
+
+:root.android-pwa-header .dashboard-hero-stack {
+  height: 264px;
+}
+
+:root.android-pwa-header .hero {
+  height: 210px;
+}
+
+:root.android-pwa-header .hero-top {
+  height: 38px;
+}
+
+:root.android-pwa-header .hero h2 {
+  margin-top: 0;
+}
+
+:root.android-pwa-header .hero p {
+  margin-top: 2px;
 }
 
 :root[data-pwa-installed="true"][data-pwa-platform="ios"],
