@@ -22,7 +22,6 @@
   --header-title-top: 10px;
   --header-title-icon-top: 4px;
   --header-title-row-height: 42px;
-  --android-top-mask-height: 0px;
   --system-nav-lift: 0px;
   --installed-nav-drop: 0px;
   --ios-nav-bottom: calc(var(--system-nav-lift) - var(--installed-nav-drop));
@@ -58,7 +57,6 @@
   --status-top: 0px;
   --header-title-top: 0px;
   --header-title-icon-top: 0px;
-  --android-top-mask-height: 3px;
 }
 
 :root.android-pwa-header,
@@ -68,30 +66,6 @@
 
 :root.android-pwa-header .app-shell {
   box-shadow: none;
-}
-
-:root.android-pwa-header body::before {
-  content: "";
-  position: fixed;
-  z-index: 2147483647;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: var(--android-top-mask-height);
-  background: var(--header-blue);
-  pointer-events: none;
-}
-
-:root.android-pwa-header body::after {
-  content: "";
-  position: fixed;
-  z-index: 2147483647;
-  top: 34px;
-  left: 0;
-  right: 0;
-  height: 14px;
-  background: var(--header-blue);
-  pointer-events: none;
 }
 
 :root.android-pwa-header,
