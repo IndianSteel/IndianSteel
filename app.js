@@ -46,6 +46,9 @@
   let renderTimer = 0;
   let syncTimer = 0;
   let receiptAssetsPromise = null;
+  let entryDropdownPointer = null;
+  let entryDropdownDismissalInstalled = false;
+  const ENTRY_DROPDOWN_TAP_SLOP = 8;
 
   const ui = {
     screen: "dashboard",
@@ -558,6 +561,55 @@
     renderTimer = setTimeout(render, 0);
   }
 
+  function hasOpenEntryDropdown() {
+    return Boolean(ui.recentOpen || ui.historyOpen);
+  }
+
+  function isEntryDropdownTapSurface(target) {
+    if (!target || !target.closest) return false;
+    if (target.closest("[data-entry-dropdown]")) return true;
+    const trigger = target.closest("[data-toggle-entry]");
+    if (!trigger) return false;
+    return !target.closest("button,a,input,select,textarea,label");
+  }
+
+  function closeEntryDropdowns() {
+    if (!hasOpenEntryDropdown()) return;
+    ui.recentOpen = "";
+    ui.historyOpen = "";
+    scheduleRender();
+  }
+
+  function setupEntryDropdownDismissal() {
+    if (entryDropdownDismissalInstalled) return;
+    entryDropdownDismissalInstalled = true;
+    document.addEventListener("pointerdown", event => {
+      entryDropdownPointer = {
+        x: event.clientX,
+        y: event.clientY,
+        moved: false
+      };
+    }, true);
+    document.addEventListener("pointermove", event => {
+      if (!entryDropdownPointer) return;
+      const movedX = Math.abs(event.clientX - entryDropdownPointer.x);
+      const movedY = Math.abs(event.clientY - entryDropdownPointer.y);
+      if (movedX > ENTRY_DROPDOWN_TAP_SLOP || movedY > ENTRY_DROPDOWN_TAP_SLOP) {
+        entryDropdownPointer.moved = true;
+      }
+    }, true);
+    document.addEventListener("pointercancel", () => {
+      entryDropdownPointer = null;
+    }, true);
+    document.addEventListener("pointerup", event => {
+      const pointer = entryDropdownPointer;
+      entryDropdownPointer = null;
+      if (!pointer || pointer.moved || !hasOpenEntryDropdown()) return;
+      if (isEntryDropdownTapSurface(event.target)) return;
+      closeEntryDropdowns();
+    }, true);
+  }
+
   function hasLocalBusinessData() {
     return Boolean(data.entries.length || data.advanceRecords.length || data.stockItems.length);
   }
@@ -728,36 +780,33 @@
   }
 
   function dashboardChart(items) {
-    const width = 340;
-    const height = 132;
-    const left = 28;
-    const right = 8;
-    const top = 0;
-    const bottom = 22;
-    const chartHeight = height - top - bottom;
-    const chartWidth = width - left - right;
+    const width = 312;
+    const height = 116;
     const axisStep = salesChartStep(items.map(item => Number(item.value || 0)));
     const chartMax = axisStep * 3;
     const axisValues = [chartMax, axisStep * 2, axisStep, 0];
     const points = items.map((item, index) => {
-      const x = left + (items.length <= 1 ? chartWidth : (chartWidth / (items.length - 1)) * index);
-      const y = top + chartHeight - (Number(item.value || 0) / Math.max(1, chartMax)) * chartHeight;
+      const x = items.length <= 1 ? 0 : (width / (items.length - 1)) * index;
+      const y = height - (Number(item.value || 0) / Math.max(1, chartMax)) * height;
       return { ...item, x, y };
     });
     const path = curvedSvgPath(points);
-    const area = `M${points[0].x.toFixed(1)} ${top + chartHeight} L${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)} ${curvedSvgSegments(points)} L${points[points.length - 1].x.toFixed(1)} ${top + chartHeight} Z`;
+    const area = `M${points[0].x.toFixed(1)} ${height} L${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)} ${curvedSvgSegments(points)} L${points[points.length - 1].x.toFixed(1)} ${height} Z`;
     return `
       <div class="dashboard-chart">
+        <div class="chart-axis">${axisValues.map(value => `<span>${esc(compactChartAxisValue(value))}</span>`).join("")}</div>
+        <div class="chart-main">
         <svg viewBox="0 0 ${width} ${height}" aria-label="Sales overview chart" role="img">
           ${axisValues.map((value, index) => {
-            const y = top + (chartHeight / 3) * index;
-            return `<line class="chart-grid" x1="${left}" y1="${y.toFixed(1)}" x2="${width - right}" y2="${y.toFixed(1)}"></line><text class="chart-y" x="0" y="${(y + 4).toFixed(1)}">${esc(compactChartAxisValue(value))}</text>`;
+            const y = (height / 3) * index;
+            return `<line class="chart-grid" x1="0" y1="${y.toFixed(1)}" x2="${width}" y2="${y.toFixed(1)}"></line>`;
           }).join("")}
           <path class="chart-area" d="${area}"></path>
           <path class="chart-line" d="${path}"></path>
           ${points.map(point => `<circle class="chart-dot-halo" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="3.5"></circle><circle class="chart-dot" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="2"></circle>`).join("")}
-          ${points.map(point => `<text class="chart-x" x="${point.x.toFixed(1)}" y="${height - 5}">${esc(point.shortLabel)}</text>`).join("")}
         </svg>
+        <div class="chart-labels">${points.map(point => `<span>${esc(point.shortLabel)}</span>`).join("")}</div>
+        </div>
       </div>`;
   }
 
@@ -867,7 +916,7 @@
     const summary = entryDetailSummary(entry);
     const saleItems = entry.saleItems.length ? entry.saleItems : [{ product: entry.itemName || "-", quantity: "", rate: "", amount: summary.purchasedAmount }];
     return `
-      <div class="detail-box entry-detail">
+      <div class="detail-box entry-detail" data-entry-dropdown>
         <div class="detail-top">
           <div class="detail-info">
             ${detailInline("Sale Number", summary.saleNumber)}
@@ -1265,9 +1314,7 @@
   function blueHeader(title) {
     return `
       <header class="blue-header">
-        <button class="icon-button" data-screen="dashboard">${svg("home")}</button>
         <h1>${esc(title)}</h1>
-        <button class="icon-button" data-action="profile">${svg("user")}</button>
       </header>`;
   }
 
@@ -3191,6 +3238,7 @@
     driveConfig = normalizeDriveConfig(savedDriveConfig);
     persistDriveConfig();
     sync.status = navigator.onLine ? "Ready" : "Offline ready";
+    setupEntryDropdownDismissal();
     render();
     void loadReceiptAssets();
     if ("serviceWorker" in navigator) {
