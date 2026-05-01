@@ -23,6 +23,7 @@
   --header-title-icon-top: 4px;
   --header-title-row-height: 42px;
   --system-nav-lift: 0px;
+  --installed-nav-drop: 0px;
   --bottom-nav-space: calc(var(--nav-height) + var(--system-nav-lift));
 }
 
@@ -40,6 +41,10 @@
   --soft-green: rgba(16, 185, 129, .16);
   --soft-red: rgba(239, 68, 68, .14);
   --shadow: 0 2px 8px rgba(0, 0, 0, .26);
+}
+
+:root[data-pwa-installed="true"] {
+  --installed-nav-drop: min(12px, var(--safe-bottom));
 }
 
 * {
@@ -1733,7 +1738,7 @@ select {
 .bottom-nav {
   position: fixed;
   left: 50%;
-  bottom: var(--system-nav-lift);
+  bottom: calc(var(--system-nav-lift) - var(--installed-nav-drop));
   transform: translateX(-50%);
   width: min(100vw, 480px);
   height: var(--nav-height);

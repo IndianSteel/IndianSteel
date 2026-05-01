@@ -1,16 +1,16 @@
-const CACHE_NAME = "indiansteel-pwa-20260501-title-status-row-apk-52";
+const CACHE_NAME = "indiansteel-pwa-20260501-installed-bottom-nav-apk-53";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
-  "./styles.css?v=20260501-title-status-row-apk-52",
+  "./styles.css?v=20260501-installed-bottom-nav-apk-53",
   "./app.js",
-  "./app.js?v=20260501-title-status-row-apk-52",
+  "./app.js?v=20260501-installed-bottom-nav-apk-53",
   "./manifest.webmanifest",
-  "./manifest.webmanifest?v=20260501-title-status-row-apk-52",
+  "./manifest.webmanifest?v=20260501-installed-bottom-nav-apk-53",
   "./icons/icon.svg",
   "./icons/indian-steel-logo.png",
-  "./icons/indian-steel-logo.png?v=20260501-title-status-row-apk-52",
+  "./icons/indian-steel-logo.png?v=20260501-installed-bottom-nav-apk-53",
   "./icons/whatsapp-icon.png",
   "./icons/receipt-logo.png",
   "./icons/receipt-stamp-signature.png"

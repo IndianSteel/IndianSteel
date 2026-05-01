@@ -8,7 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-title-status-row-apk-52";
+  const APP_BUILD_VERSION = "20260501-installed-bottom-nav-apk-53";
   const THEME_COLORS = {
     light: "#0d5bdd",
     dark: "#0b1f46"
@@ -912,10 +912,13 @@
       const visualHeight = viewport ? Math.round(viewport.height || 0) : layoutHeight;
       const keyboardGap = viewport ? Math.max(0, layoutHeight - Math.round((viewport.height || 0) + (viewport.offsetTop || 0))) : 0;
       const keyboardOpen = keyboardGap > 100;
+      const standaloneMode = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+      const iosStandalone = Boolean(window.navigator && window.navigator.standalone);
       const smallViewportGap = keyboardGap > 0 && keyboardGap <= 80 ? keyboardGap : 0;
       const navLift = keyboardOpen ? 0 : Math.min(18, smallViewportGap);
       if (!stableViewportHeight) stableViewportHeight = layoutHeight || visualHeight;
       if (!keyboardOpen) stableViewportHeight = Math.max(layoutHeight, visualHeight, stableViewportHeight);
+      root.dataset.pwaInstalled = standaloneMode || iosStandalone ? "true" : "false";
       root.style.setProperty("--app-stable-height", `${Math.max(stableViewportHeight, 320)}px`);
       root.style.setProperty("--app-keyboard-bottom", `${keyboardGap}px`);
       root.style.setProperty("--system-nav-lift", `${navLift}px`);
