@@ -24,6 +24,8 @@
   --header-title-row-height: 42px;
   --system-nav-lift: 0px;
   --installed-nav-drop: 0px;
+  --nav-plus-size: 54px;
+  --nav-plus-icon-size: 30px;
   --bottom-nav-space: calc(var(--nav-height) + var(--system-nav-lift));
 }
 
@@ -48,8 +50,41 @@
 }
 
 :root[data-pwa-installed="true"][data-pwa-platform="ios"] {
-  --nav-height: 64px;
+  --nav-height: 52px;
   --installed-nav-drop: 0px;
+  --nav-plus-size: 44px;
+  --nav-plus-icon-size: 25px;
+}
+
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 480px) {
+    :root {
+      --nav-height: 52px;
+      --installed-nav-drop: 0px;
+      --nav-plus-size: 44px;
+      --nav-plus-icon-size: 25px;
+    }
+
+    .bottom-nav {
+      bottom: 0 !important;
+      height: 52px !important;
+      min-height: 52px !important;
+      max-height: 52px !important;
+      padding-bottom: 0 !important;
+    }
+
+    .nav-item {
+      height: 52px !important;
+      min-height: 52px !important;
+      max-height: 52px !important;
+      gap: 2px;
+    }
+
+    .nav-plus {
+      width: 44px !important;
+      height: 44px !important;
+    }
+  }
 }
 
 * {
@@ -1774,8 +1809,8 @@ select {
 }
 
 .nav-plus {
-  width: 54px;
-  height: 54px;
+  width: var(--nav-plus-size);
+  height: var(--nav-plus-size);
   border-radius: 50%;
   background: var(--blue);
   color: #fff;
@@ -1787,8 +1822,8 @@ select {
 
 .nav-plus svg,
 .round-add svg {
-  width: 30px;
-  height: 30px;
+  width: var(--nav-plus-icon-size);
+  height: var(--nav-plus-icon-size);
 }
 
 .overlay {

@@ -8,7 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-ios-nav-height-apk-54";
+  const APP_BUILD_VERSION = "20260501-ios-nav-direct-apk-55";
   const THEME_COLORS = {
     light: "#0d5bdd",
     dark: "#0b1f46"
@@ -916,12 +916,26 @@
       const iosStandalone = Boolean(window.navigator && window.navigator.standalone);
       const isiOS = /iPad|iPhone|iPod/i.test(navigator.userAgent || "")
         || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      const installedMode = standaloneMode || iosStandalone;
+      const installedIos = installedMode && isiOS;
       const smallViewportGap = keyboardGap > 0 && keyboardGap <= 80 ? keyboardGap : 0;
       const navLift = keyboardOpen ? 0 : Math.min(18, smallViewportGap);
       if (!stableViewportHeight) stableViewportHeight = layoutHeight || visualHeight;
       if (!keyboardOpen) stableViewportHeight = Math.max(layoutHeight, visualHeight, stableViewportHeight);
-      root.dataset.pwaInstalled = standaloneMode || iosStandalone ? "true" : "false";
+      root.dataset.pwaInstalled = installedMode ? "true" : "false";
       root.dataset.pwaPlatform = isiOS ? "ios" : "other";
+      root.classList.toggle("ios-pwa-nav", installedIos);
+      if (installedIos) {
+        root.style.setProperty("--nav-height", "52px");
+        root.style.setProperty("--nav-plus-size", "44px");
+        root.style.setProperty("--nav-plus-icon-size", "25px");
+        root.style.setProperty("--installed-nav-drop", "0px");
+      } else {
+        root.style.removeProperty("--nav-height");
+        root.style.removeProperty("--nav-plus-size");
+        root.style.removeProperty("--nav-plus-icon-size");
+        root.style.removeProperty("--installed-nav-drop");
+      }
       root.style.setProperty("--app-stable-height", `${Math.max(stableViewportHeight, 320)}px`);
       root.style.setProperty("--app-keyboard-bottom", `${keyboardGap}px`);
       root.style.setProperty("--system-nav-lift", `${navLift}px`);
