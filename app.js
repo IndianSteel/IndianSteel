@@ -8,7 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-android-header-clean-apk-69";
+  const APP_BUILD_VERSION = "20260501-android-header-clean-apk-70";
   const THEME_COLORS = {
     light: "#0d5bdd",
     dark: "#0b1f46"

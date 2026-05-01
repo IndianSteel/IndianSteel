@@ -82,6 +82,18 @@
   pointer-events: none;
 }
 
+:root.android-pwa-header body::after {
+  content: "";
+  position: fixed;
+  z-index: 2147483647;
+  top: 34px;
+  left: 0;
+  right: 0;
+  height: 14px;
+  background: var(--header-blue);
+  pointer-events: none;
+}
+
 :root.android-pwa-header,
 :root.android-pwa-header body,
 :root.android-pwa-header .app-shell,
