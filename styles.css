@@ -1,5 +1,6 @@
 :root {
   --blue: #0d5bdd;
+  --header-blue: #0d5bdd;
   --deep-blue: #064bc0;
   --bg: #f5f7fb;
   --card: #ffffff;
@@ -20,6 +21,7 @@
 
 :root[data-theme="dark"] {
   --blue: #3b82f6;
+  --header-blue: #0b1f46;
   --deep-blue: #0b1f46;
   --bg: #0f172a;
   --card: #172033;
@@ -115,7 +117,7 @@ select {
 
 .blue-header,
 .hero {
-  background: var(--blue);
+  background: var(--header-blue);
   color: #fff;
 }
 
@@ -1372,7 +1374,7 @@ select {
 .sheet-head {
   min-height: 52px;
   padding: 0 10px;
-  background: var(--blue);
+  background: var(--header-blue);
   color: #fff;
   display: grid;
   grid-template-columns: 36px 1fr 36px;
@@ -1487,7 +1489,7 @@ select {
   position: absolute;
   inset: 0 0 auto;
   height: 250px;
-  background: var(--blue);
+  background: var(--header-blue);
 }
 
 .apk-login-content {
@@ -1737,6 +1739,12 @@ select {
   height: 19px;
 }
 
+.profile-svg {
+  display: block;
+  fill: currentColor;
+  stroke: none;
+}
+
 .profile-menu-row span:nth-child(2) {
   min-width: 0;
   color: var(--ink);
@@ -1808,7 +1816,7 @@ select {
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) 36px;
   align-items: center;
-  background: var(--blue);
+  background: var(--header-blue);
   color: #fff;
 }
 
