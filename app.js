@@ -207,8 +207,8 @@
       accountOptions: DEFAULT_ACCOUNTS.slice(),
       businessProfile: {
         name: "Indian Steel",
-        mobile: "8898644245",
-        email: "indiansteel@gmail.com",
+        mobile: "",
+        email: "",
         logoUri: ""
       },
       adminControls: { users: [], nonAdminVisibility: defaultVisibilitySettings(), updatedAt: 0 },
@@ -293,6 +293,16 @@
     };
   }
 
+  function normalizeBusinessProfile(raw) {
+    const source = raw && typeof raw === "object" ? raw : {};
+    return {
+      name: String(source.name || "").trim() || "Indian Steel",
+      mobile: onlyDigits(source.mobile || ""),
+      email: String(source.email || "").trim(),
+      logoUri: String(source.logoUri || "").trim()
+    };
+  }
+
   function driveConfigured() {
     return Boolean(driveConfig.clientId && driveConfig.folderId);
   }
@@ -327,7 +337,7 @@
       stockItems: Array.isArray(source.stockItems) ? source.stockItems.map(normalizeStock).filter(Boolean) : [],
       itemRates: source.itemRates && typeof source.itemRates === "object" ? source.itemRates : {},
       accountOptions: uniqStrings(source.accountOptions, DEFAULT_ACCOUNTS),
-      businessProfile: { ...base.businessProfile, ...(source.businessProfile || {}) },
+      businessProfile: normalizeBusinessProfile({ ...base.businessProfile, ...(source.businessProfile || {}) }),
       adminControls: normalizeAdminControls(source.adminControls),
       userActivity: Array.isArray(source.userActivity) ? source.userActivity : [],
       deletedLedgerEntryKeys: Array.isArray(source.deletedLedgerEntryKeys) ? source.deletedLedgerEntryKeys.filter(Boolean) : [],
@@ -1674,6 +1684,7 @@
   function profileLogoSrc(value) {
     const source = String(value || "").trim();
     if (/^(data:image\/|https?:\/\/|\.?\/)/i.test(source)) return source;
+    if (session.picture && /^https?:\/\//i.test(session.picture)) return session.picture;
     return "./icons/indian-steel-logo.png";
   }
 
@@ -1685,6 +1696,7 @@
     const profile = data.businessProfile || {};
     const access = currentUserAccess();
     const contact = profile.mobile || session.email || profile.email || "";
+    const profileName = displayBusinessProfileName(profile);
     const rows = [];
     if (canOpenScreen("business-profile")) rows.push(["Business Profile", "business", "business-profile"]);
     if (canOpenScreen("backup-restore")) rows.push(["Backup & Restore", "cloud", "backup-restore"]);
@@ -1699,7 +1711,7 @@
           <section class="profile-card">
             <div class="profile-logo-circle">${businessLogo()}</div>
             <div class="profile-card-copy">
-              <h2>${esc(profile.name || "Indian Steel")}</h2>
+              <h2>${esc(profileName)}</h2>
               <p class="${access.isAdmin ? "profile-role admin" : "profile-role"}">${esc(access.role)}</p>
               <p>${esc(contact)}</p>
             </div>
@@ -1720,6 +1732,15 @@
           </section>
         </section>
       </main>`;
+  }
+
+  function displayBusinessProfileName(profile) {
+    const savedName = String(profile && profile.name || "").trim();
+    const sessionName = String(session.name || "").trim();
+    if ((!savedName || savedName === "Indian Steel") && sessionName && !sessionName.includes("@")) {
+      return titleCaseName(sessionName);
+    }
+    return savedName || "Indian Steel";
   }
 
   function profileEditHeader(title, backScreen = "profile") {
@@ -3918,6 +3939,7 @@
       session = {
         email,
         name: profile.name || email,
+        picture: profile.picture || "",
         lastLoginAt: Date.now(),
         localOnly: false
       };
@@ -4130,12 +4152,43 @@
       stockItems: mergeStock(remote.stockItems, local.stockItems),
       itemRates: { ...remote.itemRates, ...local.itemRates },
       accountOptions: uniqStrings([...local.accountOptions, ...remote.accountOptions], DEFAULT_ACCOUNTS),
-      businessProfile: { ...remote.businessProfile, ...local.businessProfile },
+      businessProfile: mergeBusinessProfile(remote.businessProfile, local.businessProfile),
       adminControls: (local.adminControls.updatedAt || 0) >= (remote.adminControls.updatedAt || 0) ? local.adminControls : remote.adminControls,
       userActivity: uniqueBy([...remote.userActivity, ...local.userActivity], item => item.email || JSON.stringify(item)),
       deletedLedgerEntryKeys,
       deletedAdvanceRecordKeys
     };
+  }
+
+  function mergeBusinessProfile(remoteRaw, localRaw) {
+    const remote = normalizeBusinessProfile(remoteRaw);
+    const local = normalizeBusinessProfile(localRaw);
+    const localLooksDefault = isDefaultBusinessProfile(local);
+    const pick = (remoteValue, localValue) => {
+      const localText = String(localValue || "").trim();
+      const remoteText = String(remoteValue || "").trim();
+      if (!localText) return remoteText;
+      if (!remoteText) return localText;
+      if (localLooksDefault && localText !== remoteText) return remoteText;
+      return localText;
+    };
+    return normalizeBusinessProfile({
+      name: pick(remote.name, local.name),
+      mobile: pick(remote.mobile, local.mobile),
+      email: pick(remote.email, local.email),
+      logoUri: pick(remote.logoUri, local.logoUri)
+    });
+  }
+
+  function isDefaultBusinessProfile(profile) {
+    const name = String(profile && profile.name || "").trim();
+    const mobile = onlyDigits(profile && profile.mobile || "");
+    const email = String(profile && profile.email || "").trim().toLowerCase();
+    const logo = String(profile && profile.logoUri || "").trim();
+    const defaultName = !name || name === "Indian Steel";
+    const defaultMobile = !mobile || mobile === INDIAN_STEEL_OWNER_MOBILE;
+    const defaultEmail = !email || email === INDIAN_STEEL_BUSINESS_EMAIL;
+    return defaultName && defaultMobile && defaultEmail && !logo;
   }
 
   function mergeStock(remote, local) {
