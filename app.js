@@ -8,7 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-logout-gate-25";
+  const APP_BUILD_VERSION = "20260501-login-token-26";
   const DRIVE_FILE_NAME = "indiansteel_daily_sales_sync.json";
   const GOOGLE_DRIVE_CLIENT_ID = "18090278328-i9k2i3e78062hbfhpu7pkhe1s7uvuhql.apps.googleusercontent.com";
   const GOOGLE_DRIVE_FOLDER_ID = "1uqSmcaXlqAzGZ1QR0JctoORJsLNQrmy3";
@@ -92,6 +92,7 @@
     backupStatusError: false,
     adminDraft: null,
     adminMessage: "",
+    loginBusy: false,
     message: "",
     error: ""
   };
@@ -858,9 +859,9 @@
           <section class="card login-card">
             <h2>Secure Business Access</h2>
             <p>${esc(offlineNote)}</p>
-            <button class="primary-button google-login-button" data-action="google-login">
+            <button class="primary-button google-login-button" data-action="google-login" ${ui.loginBusy ? "disabled" : ""}>
               ${svg("user")}
-              <span>Login with Gmail</span>
+              <span>${ui.loginBusy ? "Connecting..." : "Login with Gmail"}</span>
             </button>
             <p class="login-status ${statusText && statusText.toLowerCase().includes("failed") ? "error-text" : ""}">${esc(ui.error || statusText || "Ready")}</p>
           </section>
@@ -3935,23 +3936,30 @@
   }
 
   async function loginWithGoogle() {
+    if (ui.loginBusy) return;
+    ui.loginBusy = true;
     ui.error = "";
+    sync.status = "Opening Google login";
+    scheduleRender();
     if (!driveConfigured()) {
       ui.error = "Google sync is not configured in this app.";
+      ui.loginBusy = false;
       scheduleRender();
       return;
     }
     if (!navigator.onLine) {
       ui.error = "Internet is needed for Google login.";
+      ui.loginBusy = false;
       scheduleRender();
       return;
     }
     try {
-      const token = await requestAccessToken({ prompt: "consent" });
+      const token = await requestAccessToken({ prompt: "select_account" });
       sync.token = token.access_token;
       sync.tokenExpiresAt = Date.now() + Math.max(10, Number(token.expires_in || 3600) - 60) * 1000;
       const profile = await fetchGoogleProfile();
-      const email = (profile.email || session.email || "").toLowerCase();
+      const email = String(profile.email || "").trim().toLowerCase();
+      if (!email) throw new Error("Google did not return an email. Please choose a Gmail account and allow email access.");
       if (email && !isAllowedEmail(email)) {
         throw new Error("This Gmail is not approved in app access controls.");
       }
@@ -3965,10 +3973,12 @@
       recordUserActivity(email);
       persistSession();
       sync.status = "Google connected";
-      await syncNow({ manual: true });
+      await syncNow({ manual: false, reason: "login" });
     } catch (error) {
       ui.error = error.message || "Google login failed.";
       sync.status = "Google reconnect needed";
+    } finally {
+      ui.loginBusy = false;
     }
     scheduleRender();
   }
@@ -3995,18 +4005,23 @@
     return googleScriptPromise;
   }
 
-  async function requestAccessToken({ prompt = "" } = {}) {
+  async function requestAccessToken({ prompt = "", hint = "" } = {}) {
     await loadGoogleIdentity();
     return new Promise((resolve, reject) => {
       googleTokenClient = google.accounts.oauth2.initTokenClient({
         client_id: driveConfig.clientId,
         scope: DRIVE_SCOPE,
+        include_granted_scopes: true,
         callback: response => {
           if (response.error) reject(new Error(response.error_description || response.error));
+          else if (!response.access_token) reject(new Error("Google login did not return an access token."));
           else resolve(response);
         }
       });
-      googleTokenClient.requestAccessToken({ prompt });
+      googleTokenClient.requestAccessToken({
+        prompt,
+        ...(hint ? { hint } : {})
+      });
     });
   }
 
@@ -4014,22 +4029,35 @@
     if (sync.token && Date.now() < sync.tokenExpiresAt) return true;
     if (!session.email) return false;
     try {
-      const token = await requestAccessToken({ prompt: manual ? "consent" : "" });
+      const token = await requestAccessToken({ prompt: "", hint: session.email });
       sync.token = token.access_token;
       sync.tokenExpiresAt = Date.now() + Math.max(10, Number(token.expires_in || 3600) - 60) * 1000;
       return true;
     } catch (_) {
       sync.status = "Reconnect Google to sync";
+      if (manual) ui.error = "Please login with Gmail again to reconnect Drive sync.";
       return false;
     }
   }
 
   async function fetchGoogleProfile() {
-    const response = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-      headers: { Authorization: `Bearer ${sync.token}` }
-    });
-    if (!response.ok) return {};
-    return response.json();
+    const headers = { Authorization: `Bearer ${sync.token}` };
+    const endpoints = [
+      "https://www.googleapis.com/oauth2/v3/userinfo",
+      "https://www.googleapis.com/oauth2/v2/userinfo"
+    ];
+    for (const url of endpoints) {
+      const response = await fetch(url, { headers }).catch(() => null);
+      if (!response || !response.ok) continue;
+      const profile = await response.json().catch(() => ({}));
+      if (profile && profile.email) return profile;
+    }
+    const tokenInfo = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${encodeURIComponent(sync.token)}`).catch(() => null);
+    if (tokenInfo && tokenInfo.ok) {
+      const profile = await tokenInfo.json().catch(() => ({}));
+      if (profile && profile.email) return profile;
+    }
+    return {};
   }
 
   async function refreshGoogleSessionProfile() {
