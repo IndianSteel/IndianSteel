@@ -55,7 +55,7 @@
 :root.ios-pwa-nav {
   --nav-height: 40px;
   --installed-nav-drop: 0px;
-  --ios-nav-bottom: calc(-1 * var(--safe-bottom));
+  --ios-nav-bottom: 0px;
   --ios-nav-safe-fill: var(--safe-bottom);
   --nav-plus-size: 36px;
   --nav-plus-icon-size: 22px;
@@ -66,20 +66,21 @@
     :root.ios-pwa-nav {
       --nav-height: 40px;
       --installed-nav-drop: 0px;
-      --ios-nav-bottom: calc(-1 * var(--safe-bottom));
+      --ios-nav-bottom: 0px;
       --ios-nav-safe-fill: var(--safe-bottom);
       --nav-plus-size: 36px;
       --nav-plus-icon-size: 22px;
     }
 
     :root.ios-pwa-nav .bottom-nav {
-      bottom: calc(-1 * var(--safe-bottom)) !important;
+      bottom: 0 !important;
       height: calc(40px + var(--safe-bottom)) !important;
       min-height: calc(40px + var(--safe-bottom)) !important;
       max-height: calc(40px + var(--safe-bottom)) !important;
       padding-bottom: 0 !important;
-      align-items: start !important;
-      grid-auto-rows: 40px !important;
+      grid-template-rows: 40px !important;
+      align-content: end !important;
+      align-items: center !important;
     }
 
     :root.ios-pwa-nav .nav-item {
@@ -1809,7 +1810,9 @@ select {
   border-top: 1px solid var(--line);
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  align-items: start;
+  grid-template-rows: var(--nav-height);
+  align-content: end;
+  align-items: center;
   z-index: 50;
 }
 

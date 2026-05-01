@@ -8,7 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-ios-nav-bottom-fit-apk-58";
+  const APP_BUILD_VERSION = "20260501-ios-nav-safearea-row-apk-59";
   const THEME_COLORS = {
     light: "#0d5bdd",
     dark: "#0b1f46"
@@ -912,13 +912,14 @@
     style.textContent = `
       @media (max-width: 480px) {
         .bottom-nav {
-          bottom: calc(-1 * var(--safe-bottom)) !important;
+          bottom: 0 !important;
           height: calc(40px + var(--safe-bottom)) !important;
           min-height: calc(40px + var(--safe-bottom)) !important;
           max-height: calc(40px + var(--safe-bottom)) !important;
           padding-bottom: 0 !important;
-          align-items: start !important;
-          grid-auto-rows: 40px !important;
+          grid-template-rows: 40px !important;
+          align-content: end !important;
+          align-items: center !important;
         }
         .nav-item {
           height: 40px !important;
@@ -978,7 +979,7 @@
         root.style.setProperty("--nav-plus-size", "36px");
         root.style.setProperty("--nav-plus-icon-size", "22px");
         root.style.setProperty("--installed-nav-drop", "0px");
-        root.style.setProperty("--ios-nav-bottom", "calc(-1 * var(--safe-bottom))");
+        root.style.setProperty("--ios-nav-bottom", "0px");
         root.style.setProperty("--ios-nav-safe-fill", "var(--safe-bottom)");
       } else {
         root.style.removeProperty("--nav-height");
@@ -989,7 +990,11 @@
         root.style.removeProperty("--ios-nav-safe-fill");
       }
       forceInstalledIosBottomNav(installedIos);
-      root.style.setProperty("--app-stable-height", `${Math.max(stableViewportHeight, 320)}px`);
+      const screenHeight = Math.round(Math.max(window.screen?.height || 0, window.screen?.availHeight || 0));
+      const appHeight = installedIos
+        ? Math.max(layoutHeight, visualHeight, screenHeight, 320)
+        : Math.max(stableViewportHeight, 320);
+      root.style.setProperty("--app-stable-height", `${appHeight}px`);
       root.style.setProperty("--app-keyboard-bottom", `${keyboardGap}px`);
       root.style.setProperty("--system-nav-lift", `${navLift}px`);
     };
