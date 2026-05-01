@@ -8,7 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-profile-logo-22";
+  const APP_BUILD_VERSION = "20260501-profile-logo-23";
   const DRIVE_FILE_NAME = "indiansteel_daily_sales_sync.json";
   const GOOGLE_DRIVE_CLIENT_ID = "18090278328-i9k2i3e78062hbfhpu7pkhe1s7uvuhql.apps.googleusercontent.com";
   const GOOGLE_DRIVE_FOLDER_ID = "1uqSmcaXlqAzGZ1QR0JctoORJsLNQrmy3";
@@ -18,6 +18,7 @@
   const RECEIPT_PAGE_HEIGHT = 842;
   const RECEIPT_LOGO_SRC = "./icons/receipt-logo.png";
   const RECEIPT_STAMP_SRC = "./icons/receipt-stamp-signature.png";
+  const BUSINESS_LOGO_SRC = `./icons/indian-steel-logo.png?v=${APP_BUILD_VERSION}`;
   const DEFAULT_BUSINESS_NAME = "Indian Steel";
   const INDIAN_STEEL_OWNER_MOBILE = "8898644245";
   const INDIAN_STEEL_OWNER_NAME = "Saheb Alam";
@@ -1712,9 +1713,9 @@
 
   function profileLogoSrc(value) {
     const source = String(value || "").trim();
-    if (isDefaultBusinessLogoUri(source)) return "./icons/indian-steel-logo.png";
+    if (isDefaultBusinessLogoUri(source)) return BUSINESS_LOGO_SRC;
     if (/^(data:image\/|https?:\/\/|\.?\/)/i.test(source)) return source;
-    return "./icons/indian-steel-logo.png";
+    return BUSINESS_LOGO_SRC;
   }
 
   function businessLogo(className = "profile-logo-img", value = data.businessProfile.logoUri) {
