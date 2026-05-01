@@ -52,6 +52,66 @@
   --installed-nav-drop: min(12px, var(--safe-bottom));
 }
 
+:root[data-pwa-installed="true"][data-pwa-platform="android"],
+:root.android-pwa-header {
+  --status-top: 0px;
+  --header-title-top: 0px;
+  --header-title-icon-top: 0px;
+}
+
+:root.android-pwa-header,
+:root.android-pwa-header body {
+  background: var(--header-blue);
+}
+
+:root.android-pwa-header .app-shell {
+  box-shadow: none;
+}
+
+:root.android-pwa-header,
+:root.android-pwa-header body,
+:root.android-pwa-header .app-shell,
+:root.android-pwa-header .page,
+:root.android-pwa-header .page-scroll {
+  overscroll-behavior: none;
+}
+
+:root.android-pwa-header .dashboard-hero-stack {
+  height: 264px;
+}
+
+:root.android-pwa-header .hero {
+  height: 210px;
+  padding-top: 0;
+}
+
+:root.android-pwa-header .hero-top {
+  height: 38px;
+}
+
+:root.android-pwa-header .blue-header {
+  padding-top: 0;
+}
+
+:root.android-pwa-header .blue-header h1 {
+  height: 38px;
+  margin-top: 0;
+  display: grid;
+  place-items: center;
+}
+
+:root.android-pwa-header .settlement-header-action {
+  margin-top: 2px;
+}
+
+:root.android-pwa-header .hero h2 {
+  margin-top: 0;
+}
+
+:root.android-pwa-header .hero p {
+  margin-top: 2px;
+}
+
 :root[data-pwa-installed="true"][data-pwa-platform="ios"],
 :root.ios-pwa-nav {
   --nav-height: 76px;

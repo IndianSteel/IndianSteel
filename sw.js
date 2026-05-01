@@ -1,16 +1,16 @@
-const CACHE_NAME = "indiansteel-pwa-20260501-android-header-clean-apk-72";
+const CACHE_NAME = "indiansteel-pwa-20260501-android-header-clean-apk-71";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
-  "./styles.css?v=20260501-android-header-clean-apk-72",
+  "./styles.css?v=20260501-android-header-clean-apk-71",
   "./app.js",
-  "./app.js?v=20260501-android-header-clean-apk-72",
+  "./app.js?v=20260501-android-header-clean-apk-71",
   "./manifest.webmanifest",
-  "./manifest.webmanifest?v=20260501-android-header-clean-apk-72",
+  "./manifest.webmanifest?v=20260501-android-header-clean-apk-71",
   "./icons/icon.svg",
   "./icons/indian-steel-logo.png",
-  "./icons/indian-steel-logo.png?v=20260501-android-header-clean-apk-72",
+  "./icons/indian-steel-logo.png?v=20260501-android-header-clean-apk-71",
   "./icons/whatsapp-icon.png",
   "./icons/receipt-logo.png",
   "./icons/receipt-stamp-signature.png"
