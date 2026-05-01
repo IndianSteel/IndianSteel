@@ -8,7 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-profile-sync-21";
+  const APP_BUILD_VERSION = "20260501-profile-logo-22";
   const DRIVE_FILE_NAME = "indiansteel_daily_sales_sync.json";
   const GOOGLE_DRIVE_CLIENT_ID = "18090278328-i9k2i3e78062hbfhpu7pkhe1s7uvuhql.apps.googleusercontent.com";
   const GOOGLE_DRIVE_FOLDER_ID = "1uqSmcaXlqAzGZ1QR0JctoORJsLNQrmy3";
@@ -1712,11 +1712,8 @@
 
   function profileLogoSrc(value) {
     const source = String(value || "").trim();
-    if (isDefaultBusinessLogoUri(source)) {
-      return session.picture && /^https?:\/\//i.test(session.picture) ? session.picture : "./icons/indian-steel-logo.png";
-    }
+    if (isDefaultBusinessLogoUri(source)) return "./icons/indian-steel-logo.png";
     if (/^(data:image\/|https?:\/\/|\.?\/)/i.test(source)) return source;
-    if (session.picture && /^https?:\/\//i.test(session.picture)) return session.picture;
     return "./icons/indian-steel-logo.png";
   }
 
