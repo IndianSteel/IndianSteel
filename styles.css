@@ -15,11 +15,12 @@
   --soft-green: #e9fbf4;
   --soft-red: #fff1f2;
   --shadow: 0 2px 8px rgba(15, 23, 42, .13);
-  --nav-height: 82px;
+  --nav-height: 76px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --status-top: max(28px, var(--safe-top));
   --system-nav-lift: 0px;
-  --bottom-nav-space: calc(var(--nav-height) + var(--safe-bottom) + var(--system-nav-lift));
+  --bottom-nav-space: calc(var(--nav-height) + var(--system-nav-lift));
 }
 
 :root[data-theme="dark"] {
@@ -169,7 +170,7 @@ select {
 
 .blue-header {
   height: 98px;
-  padding: 28px 16px 0;
+  padding: var(--status-top) 16px 0;
   display: grid;
   grid-template-columns: 1fr;
   align-items: center;
@@ -192,7 +193,7 @@ select {
   position: absolute;
   inset: 0 0 auto;
   height: 238px;
-  padding: 28px 16px 0;
+  padding: var(--status-top) 16px 0;
   border-bottom-left-radius: 50% 16%;
   border-bottom-right-radius: 50% 16%;
 }
@@ -1731,8 +1732,8 @@ select {
   bottom: var(--system-nav-lift);
   transform: translateX(-50%);
   width: min(100vw, 480px);
-  height: calc(var(--nav-height) + var(--safe-bottom));
-  padding-bottom: var(--safe-bottom);
+  height: var(--nav-height);
+  padding-bottom: 0;
   background: var(--card);
   border-top: 1px solid var(--line);
   display: grid;
@@ -2883,7 +2884,7 @@ select {
 
 .profile-edit-header {
   height: 98px;
-  padding: 28px 16px 0;
+  padding: var(--status-top) 16px 0;
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) 36px;
   align-items: center;
