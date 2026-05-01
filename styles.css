@@ -24,6 +24,7 @@
   --header-title-row-height: 42px;
   --system-nav-lift: 0px;
   --installed-nav-drop: 0px;
+  --ios-nav-bottom: calc(var(--system-nav-lift) - var(--installed-nav-drop));
   --nav-plus-size: 54px;
   --nav-plus-icon-size: 30px;
   --bottom-nav-space: calc(var(--nav-height) + var(--system-nav-lift));
@@ -49,40 +50,57 @@
   --installed-nav-drop: min(12px, var(--safe-bottom));
 }
 
-:root[data-pwa-installed="true"][data-pwa-platform="ios"] {
-  --nav-height: 52px;
+:root[data-pwa-installed="true"][data-pwa-platform="ios"],
+:root.ios-pwa-nav {
+  --nav-height: 46px;
   --installed-nav-drop: 0px;
-  --nav-plus-size: 44px;
-  --nav-plus-icon-size: 25px;
+  --ios-nav-bottom: 0px;
+  --nav-plus-size: 42px;
+  --nav-plus-icon-size: 24px;
 }
 
 @supports (-webkit-touch-callout: none) {
   @media (max-width: 480px) {
     :root {
-      --nav-height: 52px;
+      --nav-height: 46px;
       --installed-nav-drop: 0px;
-      --nav-plus-size: 44px;
-      --nav-plus-icon-size: 25px;
+      --ios-nav-bottom: 0px;
+      --nav-plus-size: 42px;
+      --nav-plus-icon-size: 24px;
     }
 
     .bottom-nav {
       bottom: 0 !important;
-      height: 52px !important;
-      min-height: 52px !important;
-      max-height: 52px !important;
+      height: 46px !important;
+      min-height: 46px !important;
+      max-height: 46px !important;
       padding-bottom: 0 !important;
+      align-items: center !important;
     }
 
     .nav-item {
-      height: 52px !important;
-      min-height: 52px !important;
-      max-height: 52px !important;
-      gap: 2px;
+      height: 46px !important;
+      min-height: 46px !important;
+      max-height: 46px !important;
+      gap: 1px !important;
+      font-size: 8px !important;
+      line-height: 10px !important;
+    }
+
+    .nav-item svg {
+      width: 16px !important;
+      height: 16px !important;
     }
 
     .nav-plus {
-      width: 44px !important;
-      height: 44px !important;
+      width: 42px !important;
+      height: 42px !important;
+    }
+
+    .nav-plus svg,
+    .round-add svg {
+      width: 24px !important;
+      height: 24px !important;
     }
   }
 }
@@ -1778,7 +1796,7 @@ select {
 .bottom-nav {
   position: fixed;
   left: 50%;
-  bottom: calc(var(--system-nav-lift) - var(--installed-nav-drop));
+  bottom: var(--ios-nav-bottom);
   transform: translateX(-50%);
   width: min(100vw, 480px);
   height: var(--nav-height);

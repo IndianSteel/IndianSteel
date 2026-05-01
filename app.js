@@ -8,7 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-ios-nav-direct-apk-55";
+  const APP_BUILD_VERSION = "20260501-ios-nav-force-cache-apk-57";
   const THEME_COLORS = {
     light: "#0d5bdd",
     dark: "#0b1f46"
@@ -897,6 +897,53 @@
     if (themeMeta) themeMeta.setAttribute("content", THEME_COLORS[mode] || THEME_COLORS.light);
   }
 
+  function forceInstalledIosBottomNav(enabled) {
+    const id = "ios-installed-nav-force-style";
+    let style = document.getElementById(id);
+    if (!enabled) {
+      if (style) style.remove();
+      return;
+    }
+    if (!style) {
+      style = document.createElement("style");
+      style.id = id;
+      document.head.appendChild(style);
+    }
+    style.textContent = `
+      @media (max-width: 480px) {
+        .bottom-nav {
+          bottom: 0 !important;
+          height: 46px !important;
+          min-height: 46px !important;
+          max-height: 46px !important;
+          padding-bottom: 0 !important;
+          align-items: center !important;
+        }
+        .nav-item {
+          height: 46px !important;
+          min-height: 46px !important;
+          max-height: 46px !important;
+          gap: 1px !important;
+          font-size: 8px !important;
+          line-height: 10px !important;
+        }
+        .nav-item svg {
+          width: 16px !important;
+          height: 16px !important;
+        }
+        .nav-plus {
+          width: 42px !important;
+          height: 42px !important;
+        }
+        .nav-plus svg,
+        .round-add svg {
+          width: 24px !important;
+          height: 24px !important;
+        }
+      }
+    `;
+  }
+
   function scrollPopupAccountOptionsIntoView() {
     setTimeout(() => {
       const options = document.querySelector(".popup-account-options");
@@ -926,16 +973,19 @@
       root.dataset.pwaPlatform = isiOS ? "ios" : "other";
       root.classList.toggle("ios-pwa-nav", installedIos);
       if (installedIos) {
-        root.style.setProperty("--nav-height", "52px");
-        root.style.setProperty("--nav-plus-size", "44px");
-        root.style.setProperty("--nav-plus-icon-size", "25px");
+        root.style.setProperty("--nav-height", "46px");
+        root.style.setProperty("--nav-plus-size", "42px");
+        root.style.setProperty("--nav-plus-icon-size", "24px");
         root.style.setProperty("--installed-nav-drop", "0px");
+        root.style.setProperty("--ios-nav-bottom", "0px");
       } else {
         root.style.removeProperty("--nav-height");
         root.style.removeProperty("--nav-plus-size");
         root.style.removeProperty("--nav-plus-icon-size");
         root.style.removeProperty("--installed-nav-drop");
+        root.style.removeProperty("--ios-nav-bottom");
       }
+      forceInstalledIosBottomNav(installedIos);
       root.style.setProperty("--app-stable-height", `${Math.max(stableViewportHeight, 320)}px`);
       root.style.setProperty("--app-keyboard-bottom", `${keyboardGap}px`);
       root.style.setProperty("--system-nav-lift", `${navLift}px`);
@@ -5559,6 +5609,12 @@
     render();
     void loadReceiptAssets();
     if ("serviceWorker" in navigator) {
+      let reloadingForNewWorker = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (reloadingForNewWorker) return;
+        reloadingForNewWorker = true;
+        window.location.reload();
+      });
       navigator.serviceWorker
         .register(`./sw.js?v=${APP_BUILD_VERSION}`, { updateViaCache: "none" })
         .then(registration => registration.update().catch(() => {}))
