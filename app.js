@@ -18,9 +18,23 @@
   const RECEIPT_LOGO_SRC = "./icons/receipt-logo.png";
   const RECEIPT_STAMP_SRC = "./icons/receipt-stamp-signature.png";
   const INDIAN_STEEL_OWNER_MOBILE = "8898644245";
+  const INDIAN_STEEL_OWNER_NAME = "Saheb Alam";
   const INDIAN_STEEL_RECEIPT_EMAIL = "indianssteel@gmail.com";
+  const INDIAN_STEEL_BUSINESS_EMAIL = "indiansteel@gmail.com";
   const INDIAN_STEEL_MAPS_URL = "https://www.google.com/maps/place/Indian+Steel/@19.1376069,73.0507051,17z/data=!3m1!4b1!4m6!3m5!1s0x3be7c1ef7e5ce01d:0x8c89fa91b0bb5596!8m2!3d19.1376069!4d73.0507051!16s%2Fg%2F11s65w7sc8?entry=ttu";
   const INDIAN_STEEL_RECEIPT_ADDRESS = "Shop No. 2, Goverdhan Hotel, Near Perfect Granite, Mumbra Panvel Road, Uttarshiv, Thane, Maharashtra - 400612.";
+  const ACCESS_ROLES = ["Admin", "Staff", "Viewer"];
+  const ACCESS_PAGES = [
+    { key: "History", label: "History", screen: "history" },
+    { key: "Settlements", label: "Settlements", screen: "settlements" },
+    { key: "Reports", label: "Reports", screen: "reports" },
+    { key: "Stock", label: "Stock", screen: "stock" },
+    { key: "BusinessProfile", label: "Business Profile", screen: "business-profile" },
+    { key: "BackupRestore", label: "Backup & Restore", screen: "backup-restore" },
+    { key: "DataBackup", label: "Data Backup", screen: "data-backup" },
+    { key: "Settings", label: "Settings", screen: "settings" }
+  ];
+  const ACCESS_PAGE_BY_SCREEN = ACCESS_PAGES.reduce((map, page) => ({ ...map, [page.screen]: page.key }), {});
   const DEFAULT_ITEMS = [
     "Old MS Round Pipe",
     "Old G.I. Round Pipe",
@@ -68,7 +82,13 @@
     advanceDraft: null,
     dueInvoice: "",
     dueDraft: null,
-    profileOpen: false,
+    profileDraft: null,
+    profileStatus: "",
+    profileStatusError: false,
+    backupStatus: "",
+    backupStatusError: false,
+    adminDraft: null,
+    adminMessage: "",
     message: "",
     error: ""
   };
@@ -90,6 +110,15 @@
     calendar: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/>',
     home: '<path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
     card: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/>',
+    business: '<path d="M4 21V7l8-4 8 4v14"/><path d="M9 21v-6h6v6"/><path d="M9 9h.01M15 9h.01M9 12h.01M15 12h.01"/>',
+    cloud: '<path d="M17.5 19H7a5 5 0 1 1 1.2-9.85A6 6 0 0 1 19 12.5 3.5 3.5 0 0 1 17.5 19z"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2 3-.08-.02a1.7 1.7 0 0 0-1.94-.27 1.7 1.7 0 0 0-1 1.55V21h-5v-.1a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.94.27l-.08.02-2-3 .06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3v-4h.05A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2-3 .08.02a1.7 1.7 0 0 0 1.94.27 1.7 1.7 0 0 0 1-1.55V3h5v.1a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.94-.27l.08-.02 2 3-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.55 1H21v4h-.05A1.7 1.7 0 0 0 19.4 15z"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/>',
+    logout: '<path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M21 4v16"/>',
+    "arrow-left": '<path d="m15 18-6-6 6-6"/><path d="M20 12H9"/>',
+    undo: '<path d="M3 7v6h6"/><path d="M3 13a8 8 0 1 0 2.34-5.66L3 9.5"/>',
+    light: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>',
+    dark: '<path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.5 6.5 0 0 0 9.8 9.8z"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     chart: '<path d="M4 19V5"/><path d="M8 19v-7"/><path d="M12 19V8"/><path d="M16 19v-4"/><path d="M20 19H3"/>',
     stock: '<path d="M4 7h16v13H4z"/><path d="M8 7V4h8v3"/><path d="M8 12h8"/>',
@@ -221,15 +250,44 @@
     };
   }
 
+  function normalizeRole(value) {
+    const text = String(value || "").trim().toLowerCase();
+    return ACCESS_ROLES.find(role => role.toLowerCase() === text) || "Viewer";
+  }
+
+  function normalizeAccessPage(value) {
+    const text = String(value || "").replace(/[^a-z]/gi, "").toLowerCase();
+    const page = ACCESS_PAGES.find(item =>
+      item.key.toLowerCase() === text || item.label.replace(/[^a-z]/gi, "").toLowerCase() === text
+    );
+    return page ? page.key : "";
+  }
+
+  function normalizeAccessPages(values) {
+    const list = Array.isArray(values) ? values : [];
+    return uniqueBy(list.map(normalizeAccessPage).filter(Boolean), key => key);
+  }
+
   function normalizeAdminControls(raw) {
     const source = raw && typeof raw === "object" ? raw : {};
     const nonAdminVisibility = normalizeVisibilitySettings(source.nonAdminVisibility, defaultVisibilitySettings());
     return {
-      users: Array.isArray(source.users) ? source.users.map(rule => ({
-        ...rule,
-        email: String(rule && rule.email || "").toLowerCase(),
-        visibility: normalizeVisibilitySettings(rule && rule.visibility, nonAdminVisibility)
-      })).filter(rule => rule.email) : [],
+      users: Array.isArray(source.users) ? source.users.map(rule => {
+        const role = normalizeRole(rule && rule.role);
+        const isAdmin = role === "Admin";
+        const canWrite = isAdmin || (role === "Staff" && rule && rule.canWrite === true);
+        const defaultDelete = isAdmin || (role === "Staff" && canWrite);
+        return {
+          email: String(rule && rule.email || "").trim().toLowerCase(),
+          role,
+          canWrite,
+          canDeleteRecentEntries: isAdmin || (role === "Staff" && (Object.prototype.hasOwnProperty.call(rule || {}, "canDeleteRecentEntries") ? rule.canDeleteRecentEntries === true : defaultDelete)),
+          canDeleteAdvanceEntries: isAdmin || (role === "Staff" && (Object.prototype.hasOwnProperty.call(rule || {}, "canDeleteAdvanceEntries") ? rule.canDeleteAdvanceEntries === true : defaultDelete)),
+          canDeleteDueEntries: isAdmin || (role === "Staff" && (Object.prototype.hasOwnProperty.call(rule || {}, "canDeleteDueEntries") ? rule.canDeleteDueEntries === true : defaultDelete)),
+          pages: normalizeAccessPages(rule && rule.pages),
+          visibility: isAdmin ? defaultVisibilitySettings() : normalizeVisibilitySettings(rule && rule.visibility, nonAdminVisibility)
+        };
+      }).filter(rule => rule.email) : [],
       nonAdminVisibility,
       updatedAt: Number(source.updatedAt || 0)
     };
@@ -623,11 +681,7 @@
   }
 
   function isCurrentAdmin() {
-    const email = normalizedSessionEmail();
-    if (!email) return false;
-    if (BUILT_IN_ADMINS.has(email)) return true;
-    const rule = currentAccessRule();
-    return String(rule && rule.role || "").toLowerCase() === "admin";
+    return currentUserAccess().isAdmin;
   }
 
   function currentAccessRule() {
@@ -636,11 +690,74 @@
     return rules.find(rule => String(rule.email || "").toLowerCase() === email) || null;
   }
 
-  function effectiveVisibility() {
-    if (isCurrentAdmin()) return defaultVisibilitySettings();
-    const fallback = normalizeVisibilitySettings(data && data.adminControls && data.adminControls.nonAdminVisibility, defaultVisibilitySettings());
+  function currentUserAccess() {
+    const email = normalizedSessionEmail();
+    const localAdmin = !email && session.localOnly;
+    if (localAdmin || BUILT_IN_ADMINS.has(email)) {
+      return {
+        email,
+        role: "Admin",
+        isAdmin: true,
+        canWrite: true,
+        canDeleteRecentEntries: true,
+        canDeleteAdvanceEntries: true,
+        canDeleteDueEntries: true,
+        pages: ACCESS_PAGES.map(page => page.key),
+        visibility: defaultVisibilitySettings()
+      };
+    }
     const rule = currentAccessRule();
-    return normalizeVisibilitySettings(rule && rule.visibility, fallback);
+    const role = normalizeRole(rule && rule.role);
+    const isAdmin = role === "Admin";
+    const canWrite = isAdmin || (role === "Staff" && rule && rule.canWrite === true);
+    const pages = normalizeAccessPages(rule && rule.pages);
+    if (isAdmin) ACCESS_PAGES.forEach(page => pages.includes(page.key) || pages.push(page.key));
+    if (canWrite && !pages.includes("DataBackup")) pages.push("DataBackup");
+    const fallback = normalizeVisibilitySettings(data && data.adminControls && data.adminControls.nonAdminVisibility, defaultVisibilitySettings());
+    return {
+      email,
+      role,
+      isAdmin,
+      canWrite,
+      canDeleteRecentEntries: isAdmin || (role === "Staff" && rule && rule.canDeleteRecentEntries === true),
+      canDeleteAdvanceEntries: isAdmin || (role === "Staff" && rule && rule.canDeleteAdvanceEntries === true),
+      canDeleteDueEntries: isAdmin || (role === "Staff" && rule && rule.canDeleteDueEntries === true),
+      pages,
+      visibility: isAdmin ? defaultVisibilitySettings() : normalizeVisibilitySettings(rule && rule.visibility, fallback)
+    };
+  }
+
+  function canOpenScreen(screen) {
+    const access = currentUserAccess();
+    if (access.isAdmin) return true;
+    if (["dashboard", "profile", "about-us"].includes(screen)) return true;
+    if (screen === "add") return access.canWrite;
+    if (screen === "admin-control") return false;
+    if (screen === "data-backup") return access.canWrite || access.pages.includes("DataBackup");
+    const pageKey = ACCESS_PAGE_BY_SCREEN[screen];
+    return Boolean(pageKey && access.pages.includes(pageKey));
+  }
+
+  function canWriteData() {
+    return currentUserAccess().canWrite;
+  }
+
+  function effectiveVisibility() {
+    return currentUserAccess().visibility;
+  }
+
+  function setThemeMode(mode) {
+    session.themeMode = mode === "dark" ? "dark" : "light";
+    applyThemeMode();
+    persistSession();
+  }
+
+  function appThemeMode() {
+    return session.themeMode === "dark" ? "dark" : "light";
+  }
+
+  function applyThemeMode() {
+    document.documentElement.dataset.theme = appThemeMode();
   }
 
   function totals() {
@@ -662,15 +779,26 @@
 
   function render() {
     if (!data) return;
+    applyThemeMode();
     if (!canOpenApp()) {
       app.innerHTML = loginScreen();
       bind();
       return;
     }
+    if (!canOpenScreen(ui.screen)) {
+      ui.screen = "dashboard";
+    }
     const page = ui.screen === "dashboard" ? dashboardScreen()
       : ui.screen === "settlements" ? settlementsScreen()
       : ui.screen === "reports" ? reportsScreen()
       : ui.screen === "stock" ? stockScreen()
+      : ui.screen === "profile" ? profileScreen()
+      : ui.screen === "business-profile" ? businessProfileScreen()
+      : ui.screen === "backup-restore" ? backupRestoreScreen()
+      : ui.screen === "data-backup" ? dataBackupScreen()
+      : ui.screen === "settings" ? settingsScreen()
+      : ui.screen === "admin-control" ? adminControlScreen()
+      : ui.screen === "about-us" ? aboutUsScreen()
       : historyScreen();
     app.innerHTML = page + bottomNav() + overlays() + printMarkup();
     bind();
@@ -717,6 +845,7 @@
     const recent = data.entries.slice().sort((a, b) => entryRank(b) - entryRank(a)).slice(0, 6);
     const weekly = weeklySales();
     const trend = dashboardTrend(t.todaySales);
+    const visibility = effectiveVisibility();
     return `
       <main class="page dashboard-page">
         <section class="dashboard-hero-stack">
@@ -744,15 +873,15 @@
             </div>
           </section>
         </section>
-        <section class="grid-3 dashboard-stats">
+        ${visibility.dashboardSummaryCardsVisible ? `<section class="grid-3 dashboard-stats">
           ${statCard("Monthly Sales", money(t.monthlySales), "wallet", "green", 'data-screen="reports" data-report="Monthly"')}
           ${statCard("Advances", money(t.advanceTotal), "card", "blue", 'data-settlement-open="advance"')}
           ${statCard("Due Payments", money(t.dueTotal), "card", "red", 'data-settlement-open="due"')}
-        </section>
-        <section class="card section dashboard-section">
+        </section>` : ""}
+        ${visibility.dashboardSalesOverviewVisible ? `<section class="card section dashboard-section">
           <div class="section-title"><h2>Sales Overview (Last 7 Days)</h2><button class="link-button" data-screen="reports">View All</button></div>
           ${dashboardChart(weekly)}
-        </section>
+        </section>` : ""}
         <section class="card section dashboard-section recent-section">
           <div class="section-title"><h2>Recent Entries</h2><button class="link-button history-icon-button" data-screen="history" aria-label="Open history">${svg("history")}</button></div>
           ${recent.length ? recent.map((entry, index) => dashboardEntryRow(entry) + (index < recent.length - 1 ? '<div class="divider"></div>' : "")).join("") : '<div class="empty">No entries yet.</div>'}
@@ -873,15 +1002,16 @@
     const hasDropdown = hasEntryDetailDropdown(entry);
     const open = hasDropdown && ui.recentOpen === key;
     const dateCaption = entry.timeLabel ? `${esc(entry.dateLabel)},<br>${esc(entry.timeLabel)}` : esc(entry.dateLabel);
+    const showDelete = currentUserAccess().canDeleteRecentEntries;
     return `
-      <div class="dashboard-entry-row ${hasDropdown ? "is-expandable" : ""} ${open ? "is-open" : ""}" ${hasDropdown ? `data-toggle-entry="${esc(key)}" data-source="recent"` : ""}>
+      <div class="dashboard-entry-row ${showDelete ? "has-delete" : "no-delete"} ${hasDropdown ? "is-expandable" : ""} ${open ? "is-open" : ""}" ${hasDropdown ? `data-toggle-entry="${esc(key)}" data-source="recent"` : ""}>
         <span class="tile blue">${svg(entry.kind === "Payment" ? "card" : "chart")}</span>
         <span class="row-main">
           <b>${esc(entry.customer || "Walk-in Customer")}</b>
           <span>${esc(entry.subtitle || entry.kind || entry.invoiceNo)}</span>
         </span>
         <span class="dashboard-entry-meta">${amount}<small>${dateCaption}</small></span>
-        <button class="mini-action danger" data-delete-entry="${esc(entry.id)}" aria-label="Delete">${svg("delete")}</button>
+        ${showDelete ? `<button class="mini-action danger" data-delete-entry="${esc(entry.id)}" aria-label="Delete">${svg("delete")}</button>` : ""}
       </div>
       ${open ? entryDetail(entry, { source: "recent" }) : ""}`;
   }
@@ -894,7 +1024,7 @@
     const key = entry.id;
     const hasDropdown = hasEntryDetailDropdown(entry);
     const open = hasDropdown && (source === "history" ? ui.historyOpen : ui.recentOpen) === key;
-    const showRowDelete = source === "history";
+    const showRowDelete = source === "history" && currentUserAccess().canDeleteRecentEntries;
     const timeCaption = source === "history"
       ? entry.timeLabel || entry.invoiceNo || ""
       : `${entry.dateLabel || ""} ${entry.timeLabel || ""}`.trim();
@@ -1051,18 +1181,21 @@
 
   function advanceTab() {
     const total = data.advanceRecords.reduce((sum, record) => sum + Number(record.cashAmount || 0) + Number(record.onlineAmount || 0), 0);
+    const showTotal = effectiveVisibility().advanceTotalVisible !== false;
+    const showAdd = canWriteData();
+    const columns = showAdd && showTotal ? "minmax(0,1fr) 58px minmax(0,1fr)" : showAdd ? "minmax(0,1fr) 58px" : showTotal ? "minmax(0,1fr) minmax(0,1fr)" : "minmax(0,1fr)";
     return `
-      <div class="grid-3" style="grid-template-columns:minmax(0,1fr) 58px minmax(0,1fr);align-items:center">
+      <div class="grid-3" style="grid-template-columns:${columns};align-items:center">
         <div class="card total-card"><small>Advance Entries</small><b>${data.advanceRecords.length}</b></div>
-        <button class="round-add" data-action="open-advance">${svg("plus")}</button>
-        <div class="card total-card"><small>Advance Total</small><b class="orange">${esc(money(total))}</b></div>
+        ${showAdd ? `<button class="round-add" data-action="open-advance">${svg("plus")}</button>` : ""}
+        ${showTotal ? `<div class="card total-card"><small>Advance Total</small><b class="orange">${esc(money(total))}</b></div>` : ""}
       </div>
       ${data.advanceRecords.length ? data.advanceRecords.map(record => `
         <article class="card settlement-row">
           <span class="tile blue">${svg("card")}</span>
           <span class="row-main"><b>${esc(record.customer)}</b><span>${esc(record.dateTime)}</span></span>
           <span class="row-right"><span class="money orange">${esc(money(Number(record.cashAmount || 0) + Number(record.onlineAmount || 0)))}</span><br>${esc(record.method)}</span>
-          <button class="mini-action danger" data-delete-advance="${esc(record.id)}">${svg("delete")}</button>
+          ${currentUserAccess().canDeleteAdvanceEntries ? `<button class="mini-action danger" data-delete-advance="${esc(record.id)}">${svg("delete")}</button>` : "<span></span>"}
         </article>`).join("") : '<section class="card section empty">No advance payments available yet.</section>'}`;
   }
 
@@ -1070,17 +1203,18 @@
     const dueEntries = data.entries.filter(entry => entry.kind === "Sale" && (saleDue(entry) > 0 || entry.duePaymentHistory.length));
     const dueOpen = dueEntries.filter(entry => saleDue(entry) > 0);
     const total = dueOpen.reduce((sum, entry) => sum + saleDue(entry), 0);
+    const showTotal = effectiveVisibility().dueAmountTotalVisible !== false;
     return `
-      <div class="grid-2" style="margin:10px 16px">
+      <div class="${showTotal ? "grid-2" : "grid-3"}" style="margin:10px 16px;${showTotal ? "" : "grid-template-columns:minmax(0,1fr)"}">
         <div class="card total-card"><small>Due Customers</small><b>${dueOpen.length}</b></div>
-        <div class="card total-card"><small>Due Amount</small><b class="red">${esc(money(total))}</b></div>
+        ${showTotal ? `<div class="card total-card"><small>Due Amount</small><b class="red">${esc(money(total))}</b></div>` : ""}
       </div>
       ${dueEntries.length ? dueEntries.map(entry => `
         <article class="card settlement-row">
           <span class="tile red">${svg("card")}</span>
           <span class="row-main"><b>${esc(entry.customer)}</b><span>${esc(entry.dateLabel)}, ${esc(entry.timeLabel)}</span></span>
           <span class="row-right"><span class="money red">${esc(money(saleDue(entry)))}</span></span>
-          ${saleDue(entry) > 0 ? `<button class="mini-action" data-open-due="${esc(entry.invoiceNo)}">${svg("edit")}</button>` : '<span></span>'}
+          ${saleDue(entry) > 0 && canWriteData() ? `<button class="mini-action" data-open-due="${esc(entry.invoiceNo)}">${svg("edit")}</button>` : '<span></span>'}
         </article>`).join("") : '<section class="card section empty">No due payments pending right now.</section>'}`;
   }
 
@@ -1319,14 +1453,15 @@
   }
 
   function bottomNav() {
-    const items = [
+    const baseItems = [
       ["dashboard", "home", "Dashboard"],
       ["settlements", "card", "Settlements"],
       ["add", "plus", ""],
       ["reports", "chart", "Reports"],
       ["stock", "stock", "Stock"]
     ];
-    return `<nav class="bottom-nav">
+    const items = baseItems.filter(([screen]) => screen === "add" ? canWriteData() : canOpenScreen(screen));
+    return `<nav class="bottom-nav" style="grid-template-columns:repeat(${Math.max(1, items.length)},minmax(0,1fr))">
       ${items.map(([screen, iconName, label]) => screen === "add"
         ? `<button class="nav-plus" data-action="open-add" aria-label="Add entry">${svg(iconName)}</button>`
         : `<button class="nav-item ${ui.screen === screen ? "active" : ""}" data-screen="${screen}">${svg(iconName)}<span>${label}</span></button>`).join("")}
@@ -1338,7 +1473,6 @@
       ui.addOpen ? addEntrySheet() : "",
       ui.advanceOpen ? advanceSheet() : "",
       ui.dueInvoice ? duePaymentSheet() : "",
-      ui.profileOpen ? profileSheet() : "",
       ui.historyDatePicker ? historyCalendarDialog() : ""
     ].join("");
   }
@@ -1537,33 +1671,526 @@
     return `<label class="pay-mode ${amountValue(value) > 0 ? "active" : ""}"><span>${label}</span><input class="field" data-due="${key}" inputmode="decimal" value="${esc(value)}" placeholder="0"></label>`;
   }
 
-  function profileSheet() {
-    const signedText = session.email ? `Signed in as ${session.email}` : "Local offline mode";
+  function profileLogoSrc(value) {
+    const source = String(value || "").trim();
+    if (/^(data:image\/|https?:\/\/|\.?\/)/i.test(source)) return source;
+    return "./icons/indian-steel-logo.png";
+  }
+
+  function businessLogo(className = "profile-logo-img", value = data.businessProfile.logoUri) {
+    return `<img class="${className}" src="${esc(profileLogoSrc(value))}" alt="Indian Steel">`;
+  }
+
+  function profileScreen() {
+    const profile = data.businessProfile || {};
+    const access = currentUserAccess();
+    const contact = profile.mobile || session.email || profile.email || "";
+    const rows = [];
+    if (canOpenScreen("business-profile")) rows.push(["Business Profile", "business", "business-profile"]);
+    if (canOpenScreen("backup-restore")) rows.push(["Backup & Restore", "cloud", "backup-restore"]);
+    if (canOpenScreen("data-backup")) rows.push(["Data Backup", "cloud", "data-backup"]);
+    if (canOpenScreen("settings")) rows.push(["Settings", "settings", "settings"]);
+    if (access.isAdmin) rows.push(["Admin Control", "user", "admin-control"]);
+    rows.push(["About Us", "info", "about-us"]);
     return `
-      <div class="overlay" data-overlay-close="profile">
-        <section class="sheet" data-sheet>
-          <div class="sheet-head">
-            <button class="icon-button" data-action="close-profile">${svg("close")}</button>
-            <b>Profile</b>
-            <span></span>
-          </div>
-          <div></div>
-          <div class="sheet-body">
-            <section class="card payment-card">
-              <img class="login-logo" src="./icons/indian-steel-logo.png" alt="Indian Steel">
-              <div class="section-title"><h2>${esc(data.businessProfile.name || "Indian Steel")}</h2></div>
-              <p class="muted">${esc(signedText)}</p>
-              <p class="muted">${esc(sync.status)}</p>
-              <div class="form-grid">
-                <button class="primary-button" data-action="sync-now">${sync.busy ? "Syncing Drive..." : "Sync with Drive"}</button>
-                <button class="secondary-button" data-action="google-login">${session.email ? "Reconnect Google" : "Login with Google"}</button>
-                ${session.email || session.localOnly ? '<button class="secondary-button" data-action="logout">Logout on this device</button>' : ""}
-              </div>
-            </section>
-          </div>
-          <div class="sheet-actions"><button class="save-button" data-action="close-profile">DONE</button></div>
+      <main class="page profile-page">
+        ${blueHeader("Profile")}
+        <section class="profile-content">
+          <section class="profile-card">
+            <div class="profile-logo-circle">${businessLogo()}</div>
+            <div class="profile-card-copy">
+              <h2>${esc(profile.name || "Indian Steel")}</h2>
+              <p class="${access.isAdmin ? "profile-role admin" : "profile-role"}">${esc(access.role)}</p>
+              <p>${esc(contact)}</p>
+            </div>
+          </section>
+          <section class="profile-menu">
+            ${rows.map(([title, iconName, screen], index) => `
+              <button class="profile-menu-row" data-screen="${screen}">
+                <span class="profile-menu-icon">${svg(iconName)}</span>
+                <span>${esc(title)}</span>
+                <i>${svg("chevron-right")}</i>
+              </button>
+              ${index < rows.length - 1 ? '<div class="profile-menu-divider"></div>' : ""}
+            `).join("")}
+          </section>
+          <section class="profile-footer">
+            ${session.email ? `<button class="profile-logout-button" data-action="logout">${svg("logout")}<span>Logout</span></button>` : ""}
+            <p>Developed by Ceres Canopus Private Limited.</p>
+          </section>
         </section>
+      </main>`;
+  }
+
+  function profileEditHeader(title, backScreen = "profile") {
+    return `
+      <header class="profile-edit-header">
+        <button class="profile-back-button" data-screen="${backScreen}" aria-label="Back">${svg("arrow-left")}</button>
+        <h1>${esc(title)}</h1>
+      </header>`;
+  }
+
+  function ensureProfileDraft() {
+    if (!ui.profileDraft) {
+      ui.profileDraft = {
+        name: data.businessProfile.name || "Indian Steel",
+        mobile: onlyDigits(data.businessProfile.mobile || ""),
+        email: session.email || data.businessProfile.email || "",
+        logoUri: data.businessProfile.logoUri || ""
+      };
+    }
+    return ui.profileDraft;
+  }
+
+  function businessProfileScreen() {
+    const draft = ensureProfileDraft();
+    const email = session.email || draft.email || data.businessProfile.email || "";
+    return `
+      <main class="page profile-edit-page">
+        ${profileEditHeader("Business Profile")}
+        <section class="profile-edit-content wide">
+          <section class="profile-section-card business-profile-form">
+            <button class="business-logo-picker" data-action="choose-profile-logo" aria-label="Select Profile Logo">
+              ${businessLogo("business-logo-preview", draft.logoUri)}
+            </button>
+            <button class="profile-logo-label" data-action="choose-profile-logo">Select Profile Logo</button>
+            <input class="hidden-file" type="file" accept="image/*" data-profile-logo-file>
+            <label class="profile-field-label">Name</label>
+            <input class="field profile-field" data-profile-field="name" value="${esc(draft.name)}">
+            <label class="profile-field-label">Mobile Number</label>
+            <input class="field profile-field" data-profile-field="mobile" inputmode="numeric" maxlength="10" value="${esc(draft.mobile)}">
+            <label class="profile-field-label">Mail ID</label>
+            <input class="field profile-field" value="${esc(email)}" readonly>
+            <button class="profile-primary-button" data-action="save-business-profile">Save</button>
+            ${ui.profileStatus ? `<p class="profile-status ${ui.profileStatusError ? "error" : "success"}">${esc(ui.profileStatus)}</p>` : ""}
+          </section>
+        </section>
+      </main>`;
+  }
+
+  function settingsScreen() {
+    const mode = appThemeMode();
+    return `
+      <main class="page profile-edit-page">
+        ${profileEditHeader("Settings")}
+        <section class="profile-edit-content">
+          <section class="settings-card">
+            <h2>Appearance</h2>
+            <p>Choose how IndianSteel should look on this phone.</p>
+            <div class="theme-buttons">
+              ${settingsThemeButton("light", "Light", "Bright business theme", "light", mode === "light")}
+              ${settingsThemeButton("dark", "Dark", "Low-light business theme", "dark", mode === "dark")}
+            </div>
+          </section>
+          <section class="settings-card">
+            <h2>Account & Security</h2>
+            <p>Login access and company account status.</p>
+            ${settingsInfoLine("Login required", "Enabled", "success")}
+            ${settingsInfoLine("Signed in Gmail", session.email || "Not connected", session.email ? "" : "warning")}
+            ${settingsInfoLine("Access control", "Google test users + shared Drive folder")}
+          </section>
+          <section class="settings-card">
+            <h2>Backup & Data</h2>
+            <p>Shortcuts for sync, backup, and restore.</p>
+            ${settingsInfoLine("Auto sync", "Instant changes + background check", "blue")}
+            ${settingsInfoLine("Last Drive status", sync.status, sync.status.toLowerCase().includes("failed") ? "error" : sync.status.toLowerCase().includes("sync") ? "blue" : "success")}
+            ${canOpenScreen("data-backup") ? settingsActionRow("Data Backup", "Open Drive sync details", "cloud", "data-backup") : ""}
+            ${canOpenScreen("backup-restore") ? settingsActionRow("Backup & Restore", "Create or restore local backup file", "undo", "backup-restore") : ""}
+          </section>
+          ${canOpenScreen("business-profile") ? `
+            <section class="settings-card">
+              <h2>Business Setup</h2>
+              <p>Company name, number, email, and logo.</p>
+              ${settingsActionRow("Business Profile", "Edit saved business profile", "business", "business-profile")}
+            </section>` : ""}
+          <section class="settings-card">
+            <h2>App Info</h2>
+            <p>Current app setup and storage mode.</p>
+            ${settingsInfoLine("App name", "IndianSteel")}
+            ${settingsInfoLine("Company", "Indian Steel")}
+            ${settingsInfoLine("Storage", "Offline local data + Google Drive JSON")}
+            ${settingsInfoLine("Drive file", DRIVE_FILE_NAME)}
+          </section>
+          <section class="settings-card">
+            <h2>Theme Preview</h2>
+            <div class="theme-preview">
+              <span>${svg(mode === "dark" ? "dark" : "light")}</span>
+              <div><b>${mode === "dark" ? "Dark" : "Light"} mode selected</b><small>Saved automatically on this phone.</small></div>
+            </div>
+          </section>
+          <p class="profile-page-note">More settings will be added here as we complete the remaining app pages.</p>
+        </section>
+      </main>`;
+  }
+
+  function settingsThemeButton(mode, title, description, iconName, selected) {
+    return `
+      <button class="theme-button ${selected ? "active" : ""}" data-theme-mode="${mode}">
+        ${svg(iconName)}
+        <b>${esc(title)}</b>
+        <span>${esc(description)}</span>
+      </button>`;
+  }
+
+  function settingsInfoLine(label, value, tone = "") {
+    return `<div class="settings-info-line"><span>${esc(label)}</span><b class="${tone}">${esc(value)}</b></div>`;
+  }
+
+  function settingsActionRow(title, description, iconName, screen) {
+    return `
+      <button class="settings-action-row" data-screen="${screen}">
+        <span>${svg(iconName)}</span>
+        <i><b>${esc(title)}</b><small>${esc(description)}</small></i>
+        ${svg("chevron-right")}
+      </button>`;
+  }
+
+  function backupRestoreScreen() {
+    const canRestore = canWriteData();
+    return `
+      <main class="page profile-edit-page">
+        ${profileEditHeader("Backup & Restore")}
+        <section class="profile-edit-content">
+          <section class="profile-section-card">
+            <h2>Local Data Summary</h2>
+            <div class="backup-chip-grid">
+              ${backupSummaryChip("Entries", data.entries.length)}
+              ${backupSummaryChip("Advances", data.advanceRecords.length)}
+              ${backupSummaryChip("Items", data.itemCatalog.length)}
+              ${backupSummaryChip("Accounts", data.accountOptions.length)}
+            </div>
+            <p class="settings-muted-copy">Backup includes sales, dues, advances, item rates, accounts, and business profile.</p>
+          </section>
+          ${backupActionCard("Create Backup", "Save a complete offline copy as a JSON file. Keep it in Drive, WhatsApp, or phone storage.", "Create Backup File", "cloud", "blue", "create-backup", true)}
+          ${backupActionCard("Restore From File", canRestore ? "Choose a previous IndianSteel backup. This replaces current local data on this phone." : "Restore changes data and needs write access from admin.", canRestore ? "Choose Backup File" : "Write Access Required", "undo", "orange", "choose-restore", canRestore)}
+          <input class="hidden-file" type="file" accept="application/json,text/plain,.json" data-restore-file>
+          ${ui.backupStatus ? `<div class="profile-alert ${ui.backupStatusError ? "error" : "success"}">${esc(ui.backupStatus)}</div>` : ""}
+        </section>
+      </main>`;
+  }
+
+  function backupSummaryChip(label, value) {
+    return `<div class="backup-summary-chip"><b>${esc(value)}</b><span>${esc(label)}</span></div>`;
+  }
+
+  function backupActionCard(title, description, buttonText, iconName, tone, action, enabled) {
+    return `
+      <section class="profile-section-card backup-action-card">
+        <div class="backup-action-head">
+          <span class="${tone}">${svg(iconName)}</span>
+          <div><h2>${esc(title)}</h2><p>${esc(description)}</p></div>
+        </div>
+        <button class="profile-primary-button ${tone}" data-action="${action}" ${enabled ? "" : "disabled"}>${esc(buttonText)}</button>
+      </section>`;
+  }
+
+  function dataBackupScreen() {
+    const hasDriveLogin = Boolean(session.email);
+    const canSync = canWriteData();
+    const failed = sync.status.toLowerCase().includes("failed");
+    const tone = !hasDriveLogin || !canSync ? "warning" : failed ? "error" : sync.busy ? "blue" : "success";
+    const statusText = !hasDriveLogin
+      ? "Login with Gmail first to use Drive backup."
+      : !canSync
+        ? "Read-only access. Drive sync needs write permission."
+        : sync.busy
+          ? "Syncing Drive..."
+          : sync.status;
+    return `
+      <main class="page profile-edit-page">
+        ${profileEditHeader("Data Backup")}
+        <section class="profile-edit-content">
+          <section class="profile-section-card">
+            <div class="drive-card-head">
+              <span>${svg("cloud")}</span>
+              <div><h2>Google Drive Backup</h2><p>${esc(session.email || "No Gmail connected")}</p></div>
+            </div>
+            <div class="profile-alert ${tone}">${esc(statusText)}</div>
+          </section>
+          ${backupActionCard("Sync with Drive", canSync ? "Uploads this phone's latest data and downloads changes from the shared IndianSteel Drive file." : "Drive sync changes shared data and needs write access from admin.", sync.busy ? "Syncing Drive..." : canSync ? "Sync with Drive" : "Write Access Required", "cloud", "blue", "sync-now", hasDriveLogin && canSync && !sync.busy)}
+          <section class="profile-section-card">
+            <h2>What Gets Synced</h2>
+            <div class="backup-chip-grid">
+              ${backupSummaryChip("Entries", data.entries.length)}
+              ${backupSummaryChip("Advances", data.advanceRecords.length)}
+              ${backupSummaryChip("Items", data.itemCatalog.length)}
+              ${backupSummaryChip("Accounts", data.accountOptions.length)}
+            </div>
+            ${dataBackupInfoRow("Saved changes sync immediately while Gmail is connected.")}
+            ${dataBackupInfoRow("Background Drive checks are throttled so large pages stay smooth.")}
+            ${dataBackupInfoRow("Manual sync is safe to press anytime after entries are saved.")}
+            ${dataBackupInfoRow("Offline entries stay on this phone and sync when internet returns.")}
+          </section>
+          <section class="profile-section-card">
+            <h2>Drive File</h2>
+            ${dataBackupDetailLine("File", DRIVE_FILE_NAME)}
+            ${dataBackupDetailLine("Folder", "IndianSteel shared Drive folder")}
+            ${dataBackupDetailLine("Mode", "Merge sync, not blind replace")}
+          </section>
+        </section>
+      </main>`;
+  }
+
+  function dataBackupInfoRow(text) {
+    return `<div class="data-backup-info-row"><span></span><p>${esc(text)}</p></div>`;
+  }
+
+  function dataBackupDetailLine(label, value) {
+    return `<div class="data-backup-detail-line"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
+  }
+
+  function aboutUsScreen() {
+    return `
+      <main class="page profile-edit-page">
+        ${profileEditHeader("About Us")}
+        <section class="profile-edit-content">
+          <section class="about-hero-card">
+            <div class="about-logo-circle"><img src="./icons/indian-steel-logo.png" alt="Indian Steel"></div>
+            <div>
+              <h2>IndianSteel</h2>
+              <p>Daily sales and business control app for Indian Steel.</p>
+              <span>Version 1.0</span>
+            </div>
+          </section>
+          <section class="settings-card">
+            <h2>About IndianSteel</h2>
+            <p>Built for daily sales, collection, and backup work.</p>
+            <p class="settings-muted-copy">IndianSteel keeps Indian Steel's sales entries, advance payments, due collections, reports, stock view, and Drive backup in one compact phone-friendly workspace.</p>
+            ${aboutFeatureRow("chart", "Sales records", "Recent entries, customer details, payment split, and due snapshots.")}
+            ${aboutFeatureRow("card", "Payments", "Advance payment, due payment, cash, online, and account tracking.")}
+            ${aboutFeatureRow("chart", "Reports and stock", "Daily, weekly, monthly reporting with stock page access when allowed.")}
+            ${aboutFeatureRow("cloud", "Data backup", "Offline local storage with Google Drive sync for shared backup.")}
+          </section>
+          <section class="settings-card">
+            <h2>Business</h2>
+            <p>Indian Steel company owner and contact details.</p>
+            ${settingsInfoLine("Owner", INDIAN_STEEL_OWNER_NAME)}
+            ${settingsInfoLine("Mobile", INDIAN_STEEL_OWNER_MOBILE)}
+            ${settingsInfoLine("Gmail", INDIAN_STEEL_BUSINESS_EMAIL)}
+          </section>
+          <section class="settings-card">
+            <h2>Developer</h2>
+            <p>Developed by Ceres Canopus Private Limited.</p>
+            <p class="settings-muted-copy">Ceres Canopus Private Limited developed this custom IndianSteel app for business use, local record keeping, and managed Google Drive backup.</p>
+            ${settingsInfoLine("Company", "Ceres Canopus Private Limited")}
+            ${settingsInfoLine("Status", "Active private limited company")}
+            ${settingsInfoLine("Incorporated", "08 Jul 2024")}
+            ${settingsInfoLine("Location", "Thane, Maharashtra, India")}
+            ${settingsInfoLine("CIN", "U85500MH2024PTC428441")}
+          </section>
+          <p class="profile-page-note">Developed by Ceres Canopus Private Limited.</p>
+        </section>
+      </main>`;
+  }
+
+  function aboutFeatureRow(iconName, title, description) {
+    return `
+      <div class="about-feature-row">
+        <span>${svg(iconName)}</span>
+        <div><b>${esc(title)}</b><small>${esc(description)}</small></div>
       </div>`;
+  }
+
+  function adminControlScreen() {
+    const draft = ensureAdminDraft();
+    const effective = effectiveAdminDraft(draft);
+    const savedRules = (data.adminControls.users || []).slice().sort((a, b) => a.email.localeCompare(b.email));
+    const activeUsers = (data.userActivity || []).slice().sort((a, b) => Number(b.lastSeenAt || 0) - Number(a.lastSeenAt || 0));
+    return `
+      <main class="page profile-edit-page">
+        ${profileEditHeader("Admin Control")}
+        <section class="profile-edit-content admin-content">
+          <section class="settings-card">
+            <h2>Admin Account</h2>
+            <p>Manage who can open pages and write data.</p>
+            ${settingsInfoLine("Admin Gmail", Array.from(BUILT_IN_ADMINS).join(", "))}
+            ${settingsInfoLine("Signed in", session.email || "Not connected", isCurrentAdmin() ? "success" : "warning")}
+            ${settingsInfoLine("Active tracking", `${activeUsers.length} login${activeUsers.length === 1 ? "" : "s"} recorded`, "blue")}
+          </section>
+          <section class="profile-section-card admin-form">
+            <h2>Add / Update User</h2>
+            <p class="settings-muted-copy">Choose role, page access, delete rights, and visible totals.</p>
+            <label class="profile-field-label">Gmail address</label>
+            <input class="field profile-field" data-admin-field="email" placeholder="user@gmail.com" value="${esc(draft.email)}">
+            <div class="admin-segment-row">
+              ${ACCESS_ROLES.map(role => `<button class="admin-chip ${effective.role === role ? "active" : ""}" data-admin-role="${role}">${role}</button>`).join("")}
+            </div>
+            <button class="admin-write-row ${effective.canWrite ? "active" : ""}" data-action="toggle-admin-write" ${effective.role === "Staff" ? "" : "disabled"}>
+              <span></span>
+              <i><b>Write access</b><small>${effective.role === "Admin" ? "Always enabled for Admin role." : effective.role === "Staff" ? "Allows Add Entry, edits, restores, and Data Backup." : "Available only for Staff role."}</small></i>
+            </button>
+            <h3 class="admin-subtitle">Delete Permissions</h3>
+            <div class="admin-three-grid">
+              ${adminPermissionChip("Recent", effective.canDeleteRecentEntries, effective.role === "Staff", "recent")}
+              ${adminPermissionChip("Advance", effective.canDeleteAdvanceEntries, effective.role === "Staff", "advance")}
+              ${adminPermissionChip("Due", effective.canDeleteDueEntries, effective.role === "Staff", "due")}
+            </div>
+            <p class="settings-muted-copy compact">Admin gets all delete rights. Viewer cannot delete records.</p>
+            <h3 class="admin-subtitle">Display Visibility</h3>
+            ${adminVisibilityRow("Dashboard summary cards", "Monthly Sales, Advances, and Due Payments.", effective.visibility.dashboardSummaryCardsVisible, !effective.isAdmin, "dashboardSummaryCardsVisible")}
+            ${adminVisibilityRow("Dashboard sales overview", "Sales Overview chart card on Dashboard.", effective.visibility.dashboardSalesOverviewVisible, !effective.isAdmin, "dashboardSalesOverviewVisible")}
+            ${adminVisibilityRow("History daily total", "Total sales amount inside History date groups.", effective.visibility.historyDailySalesTotalVisible, !effective.isAdmin, "historyDailySalesTotalVisible")}
+            ${adminVisibilityRow("History print button", "Print selected History date range as PDF.", effective.visibility.historyPrintButtonVisible, !effective.isAdmin, "historyPrintButtonVisible")}
+            ${adminVisibilityRow("Advance total", "Advance Total card on Settlements.", effective.visibility.advanceTotalVisible, !effective.isAdmin, "advanceTotalVisible")}
+            ${adminVisibilityRow("Due amount total", "Due Amount card on Settlements.", effective.visibility.dueAmountTotalVisible, !effective.isAdmin, "dueAmountTotalVisible")}
+            <p class="settings-muted-copy compact">Admin accounts always see all dashboard cards and totals. Staff and viewers follow this user's settings.</p>
+            <h3 class="admin-subtitle">Visible Pages</h3>
+            <div class="admin-page-grid">
+              ${ACCESS_PAGES.map(page => adminPageChip(page, effective)).join("")}
+            </div>
+            <p class="settings-muted-copy compact">Dashboard and Profile stay available. Data Backup is added automatically for write users.</p>
+            <button class="profile-primary-button" data-action="save-admin-rule">${svg("user")}<span>Save User Access</span></button>
+            ${ui.adminMessage ? `<p class="profile-status ${ui.adminMessage.toLowerCase().includes("saved") ? "success" : "warning"}">${esc(ui.adminMessage)}</p>` : ""}
+          </section>
+          <section class="profile-section-card">
+            <h2>Active Logins</h2>
+            <p class="settings-muted-copy">Tap a Gmail to load it into the access form.</p>
+            ${activeUsers.length ? activeUsers.map((record, index) => adminActivityRow(record, index < activeUsers.length - 1)).join("") : adminEmptyText("No active login has synced yet.")}
+          </section>
+          <section class="profile-section-card">
+            <h2>Saved User Rules</h2>
+            <p class="settings-muted-copy">${esc(adminUpdatedText(data.adminControls.updatedAt))}</p>
+            ${savedRules.length ? savedRules.map((rule, index) => adminRuleRow(rule, index < savedRules.length - 1)).join("") : adminEmptyText("No rules saved yet. Users without a rule can only open Dashboard and Profile.")}
+          </section>
+        </section>
+      </main>`;
+  }
+
+  function ensureAdminDraft() {
+    if (!ui.adminDraft) ui.adminDraft = blankAdminDraft();
+    return ui.adminDraft;
+  }
+
+  function blankAdminDraft(email = "") {
+    return {
+      email: String(email || "").trim().toLowerCase(),
+      role: "Viewer",
+      canWrite: false,
+      canDeleteRecentEntries: false,
+      canDeleteAdvanceEntries: false,
+      canDeleteDueEntries: false,
+      pages: [],
+      visibility: defaultVisibilitySettings()
+    };
+  }
+
+  function effectiveAdminDraft(draft) {
+    const role = normalizeRole(draft.role);
+    const isAdmin = role === "Admin";
+    const canWrite = isAdmin || (role === "Staff" && draft.canWrite === true);
+    const pages = isAdmin ? ACCESS_PAGES.map(page => page.key) : normalizeAccessPages(draft.pages);
+    if (canWrite && !pages.includes("DataBackup")) pages.push("DataBackup");
+    return {
+      ...draft,
+      role,
+      isAdmin,
+      canWrite,
+      canDeleteRecentEntries: isAdmin || (role === "Staff" && draft.canDeleteRecentEntries === true),
+      canDeleteAdvanceEntries: isAdmin || (role === "Staff" && draft.canDeleteAdvanceEntries === true),
+      canDeleteDueEntries: isAdmin || (role === "Staff" && draft.canDeleteDueEntries === true),
+      pages,
+      visibility: isAdmin ? defaultVisibilitySettings() : normalizeVisibilitySettings(draft.visibility, defaultVisibilitySettings())
+    };
+  }
+
+  function adminPermissionChip(label, selected, enabled, key) {
+    return `<button class="admin-chip ${selected ? "active" : ""}" data-admin-delete="${key}" ${enabled ? "" : "disabled"}>${esc(label)}</button>`;
+  }
+
+  function adminVisibilityRow(title, description, visible, enabled, key) {
+    return `
+      <button class="admin-visibility-row" data-admin-visibility="${key}" ${enabled ? "" : "disabled"}>
+        <i><b>${esc(title)}</b><small>${esc(description)}</small></i>
+        <span class="${visible ? "shown" : "hidden"}">${enabled ? visible ? "Shown" : "Hidden" : "Always"}</span>
+      </button>`;
+  }
+
+  function adminPageChip(page, effective) {
+    const forced = effective.isAdmin || (page.key === "DataBackup" && effective.canWrite);
+    const selected = effective.pages.includes(page.key);
+    return `<button class="admin-chip ${selected ? "active" : ""}" data-admin-page="${page.key}" ${forced ? "disabled" : ""}>${esc(page.label)}</button>`;
+  }
+
+  function adminEmptyText(text) {
+    return `<div class="admin-empty">${esc(text)}</div>`;
+  }
+
+  function adminActivityRow(record, showDivider) {
+    const status = adminActivityStatus(record.lastSeenAt);
+    return `
+      <button class="admin-activity-row" data-admin-select-email="${esc(record.email)}">
+        <span>${svg("user")}</span>
+        <i><b>${esc(record.email)}</b><small>Last seen ${esc(relativeActivityText(record.lastSeenAt))}</small></i>
+        <em class="${status.tone}">${esc(status.text)}</em>
+      </button>
+      ${showDivider ? '<div class="profile-menu-divider"></div>' : ""}`;
+  }
+
+  function adminRuleRow(rule, showDivider) {
+    const role = normalizeRole(rule.role);
+    const pageLabels = role === "Admin"
+      ? "All pages"
+      : normalizeAccessPages(rule.pages).map(key => (ACCESS_PAGES.find(page => page.key === key) || {}).label).filter(Boolean).join(", ") || "Dashboard, Profile only";
+    return `
+      <div class="admin-rule-row">
+        <div>
+          <b>${esc(rule.email)}</b>
+          <small class="${rule.canWrite ? "blue" : ""}">${esc(role)} - ${rule.canWrite ? "Write enabled" : "Read only"}</small>
+          <small>Delete: ${esc(deletePermissionText(rule))}</small>
+          <small>Summary: ${esc(visibilityPermissionText(rule.visibility))}</small>
+          <small>${esc(pageLabels)}</small>
+        </div>
+        <span>
+          <button data-admin-load="${esc(rule.email)}">Load</button>
+          <button class="danger" data-admin-remove="${esc(rule.email)}">Remove</button>
+        </span>
+      </div>
+      ${showDivider ? '<div class="profile-menu-divider"></div>' : ""}`;
+  }
+
+  function adminActivityStatus(lastSeenAt) {
+    const age = Math.max(0, Date.now() - Number(lastSeenAt || 0));
+    if (age <= 35000) return { text: "Active", tone: "success" };
+    if (age <= 300000) return { text: "Recent", tone: "blue" };
+    return { text: "Offline", tone: "" };
+  }
+
+  function relativeActivityText(lastSeenAt) {
+    const time = Number(lastSeenAt || 0);
+    if (!time) return "not available";
+    const seconds = Math.floor(Math.max(0, Date.now() - time) / 1000);
+    if (seconds < 10) return "just now";
+    if (seconds < 60) return `${seconds}s ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    return new Date(time).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  }
+
+  function adminUpdatedText(updatedAt) {
+    const time = Number(updatedAt || 0);
+    if (!time) return "No access rules saved yet.";
+    return `Last updated ${new Date(time).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}`;
+  }
+
+  function deletePermissionText(rule) {
+    if (normalizeRole(rule.role) === "Admin") return "All";
+    const labels = [];
+    if (rule.canDeleteRecentEntries) labels.push("Recent");
+    if (rule.canDeleteAdvanceEntries) labels.push("Advance");
+    if (rule.canDeleteDueEntries) labels.push("Due");
+    return labels.join(", ") || "None";
+  }
+
+  function visibilityPermissionText(visibility) {
+    const value = normalizeVisibilitySettings(visibility, defaultVisibilitySettings());
+    const hidden = [];
+    if (!value.dashboardSummaryCardsVisible) hidden.push("Dashboard cards");
+    if (!value.dashboardSalesOverviewVisible) hidden.push("Sales overview");
+    if (!value.historyDailySalesTotalVisible) hidden.push("History total");
+    if (!value.historyPrintButtonVisible) hidden.push("History print");
+    if (!value.advanceTotalVisible) hidden.push("Advance total");
+    if (!value.dueAmountTotalVisible) hidden.push("Due total");
+    return hidden.length ? `Hidden: ${hidden.join(", ")}` : "All visible";
   }
 
   function printMarkup() {
@@ -1992,9 +2619,12 @@
 
   function bind() {
     document.querySelectorAll("[data-screen]").forEach(el => el.addEventListener("click", () => {
+      if (!canOpenScreen(el.dataset.screen)) return;
       ui.screen = el.dataset.screen;
       ui.recentOpen = "";
       ui.historyOpen = "";
+      ui.error = "";
+      if (ui.screen === "business-profile") ui.profileDraft = null;
       scheduleRender();
     }));
     document.querySelectorAll("[data-action]").forEach(el => el.addEventListener("click", event => handleAction(event, el.dataset.action)));
@@ -2065,6 +2695,33 @@
     });
     document.querySelectorAll("[data-history-date]").forEach(el => el.addEventListener("click", () => openHistoryDatePicker(el.dataset.historyDate)));
     document.querySelectorAll("[data-calendar-day]").forEach(el => el.addEventListener("click", () => selectHistoryDate(el.dataset.calendarDay)));
+    document.querySelectorAll("[data-theme-mode]").forEach(el => el.addEventListener("click", () => {
+      setThemeMode(el.dataset.themeMode);
+      scheduleRender();
+    }));
+    document.querySelectorAll("[data-profile-field]").forEach(el => el.addEventListener("input", () => updateProfileDraft(el)));
+    const profileLogoFile = document.querySelector("[data-profile-logo-file]");
+    if (profileLogoFile) profileLogoFile.addEventListener("change", () => {
+      const file = profileLogoFile.files && profileLogoFile.files[0];
+      if (file) void readProfileLogo(file);
+    });
+    const restoreFile = document.querySelector("[data-restore-file]");
+    if (restoreFile) restoreFile.addEventListener("change", () => {
+      const file = restoreFile.files && restoreFile.files[0];
+      if (file) void restoreBackupFile(file);
+    });
+    document.querySelectorAll("[data-admin-field]").forEach(el => el.addEventListener("input", () => {
+      const draft = ensureAdminDraft();
+      draft[el.dataset.adminField] = el.dataset.adminField === "email" ? String(el.value || "").trim().toLowerCase() : el.value;
+      ui.adminMessage = "";
+    }));
+    document.querySelectorAll("[data-admin-role]").forEach(el => el.addEventListener("click", () => setAdminRole(el.dataset.adminRole)));
+    document.querySelectorAll("[data-admin-delete]").forEach(el => el.addEventListener("click", () => toggleAdminDelete(el.dataset.adminDelete)));
+    document.querySelectorAll("[data-admin-visibility]").forEach(el => el.addEventListener("click", () => toggleAdminVisibility(el.dataset.adminVisibility)));
+    document.querySelectorAll("[data-admin-page]").forEach(el => el.addEventListener("click", () => toggleAdminPage(el.dataset.adminPage)));
+    document.querySelectorAll("[data-admin-load]").forEach(el => el.addEventListener("click", () => loadAdminRule(el.dataset.adminLoad)));
+    document.querySelectorAll("[data-admin-remove]").forEach(el => el.addEventListener("click", () => removeAdminRule(el.dataset.adminRemove)));
+    document.querySelectorAll("[data-admin-select-email]").forEach(el => el.addEventListener("click", () => selectAdminEmail(el.dataset.adminSelectEmail)));
   }
 
   function toggleEntryDropdown(key, source) {
@@ -2128,9 +2785,10 @@
       persistSession();
       scheduleRender();
     }
-    if (action === "profile") ui.profileOpen = true;
-    if (action === "close-profile") ui.profileOpen = false;
+    if (action === "profile") ui.screen = "profile";
+    if (action === "close-profile") ui.screen = "profile";
     if (action === "open-add") {
+      if (!canWriteData()) return;
       ui.addOpen = true;
       ui.addStep = "Customer";
       ui.addDraft = newAddDraft();
@@ -2153,6 +2811,18 @@
     if (action === "history-calendar-prev") shiftHistoryCalendar(-1);
     if (action === "history-calendar-next") shiftHistoryCalendar(1);
     if (action === "sync-now") void syncNow({ manual: true });
+    if (action === "choose-profile-logo") {
+      const input = document.querySelector("[data-profile-logo-file]");
+      if (input) input.click();
+    }
+    if (action === "save-business-profile") saveBusinessProfile();
+    if (action === "create-backup") createBackupFile();
+    if (action === "choose-restore") {
+      const input = document.querySelector("[data-restore-file]");
+      if (input) input.click();
+    }
+    if (action === "toggle-admin-write") toggleAdminWrite();
+    if (action === "save-admin-rule") saveAdminRule();
     if (action === "logout") {
       session = {};
       sync.token = "";
@@ -2168,7 +2838,7 @@
     if (name === "add") ui.addOpen = false;
     if (name === "advance") ui.advanceOpen = false;
     if (name === "due") ui.dueInvoice = "";
-    if (name === "profile") ui.profileOpen = false;
+    if (name === "profile") ui.screen = "profile";
     if (name === "history-calendar") {
       ui.historyDatePicker = "";
       ui.historyCalendarMonth = "";
@@ -2220,6 +2890,59 @@
     }
   }
 
+  function updateProfileDraft(el) {
+    const draft = ensureProfileDraft();
+    const key = el.dataset.profileField;
+    let value = el.value;
+    if (key === "mobile") value = onlyDigits(value);
+    draft[key] = value;
+    if (el.value !== value) el.value = value;
+    ui.profileStatus = "";
+  }
+
+  async function readProfileLogo(file) {
+    if (!file || !file.type.startsWith("image/")) {
+      ui.profileStatus = "Please choose an image file.";
+      ui.profileStatusError = true;
+      scheduleRender();
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      ensureProfileDraft().logoUri = String(reader.result || "");
+      ui.profileStatus = "";
+      scheduleRender();
+    };
+    reader.onerror = () => {
+      ui.profileStatus = "Unable to read selected logo.";
+      ui.profileStatusError = true;
+      scheduleRender();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function saveBusinessProfile() {
+    const draft = ensureProfileDraft();
+    const mobile = onlyDigits(draft.mobile);
+    if (mobile.length !== 10) {
+      ui.profileStatus = "Please enter a 10 digit mobile number.";
+      ui.profileStatusError = true;
+      scheduleRender();
+      return;
+    }
+    data.businessProfile = {
+      name: String(draft.name || "").trim() || "Indian Steel",
+      mobile,
+      email: session.email || draft.email || data.businessProfile.email || "",
+      logoUri: draft.logoUri || ""
+    };
+    ui.profileDraft = { ...data.businessProfile };
+    ui.profileStatus = "Profile saved successfully";
+    ui.profileStatusError = false;
+    sync.status = "Profile saved locally";
+    persist();
+  }
+
   function balanceDueDraft(lastEdited) {
     const sale = data.entries.find(entry => entry.invoiceNo === ui.dueInvoice);
     if (!sale) return;
@@ -2236,6 +2959,7 @@
   }
 
   function saveAdvance() {
+    if (!canWriteData()) return;
     const draft = ui.advanceDraft;
     draft.customer = titleCaseName(draft.customer).trim();
     draft.mobile = onlyDigits(draft.mobile);
@@ -2263,6 +2987,7 @@
   }
 
   function openDueSheet(invoiceNo) {
+    if (!canWriteData()) return;
     const sale = data.entries.find(entry => entry.invoiceNo === invoiceNo);
     if (!sale) return;
     ui.dueInvoice = invoiceNo;
@@ -2272,6 +2997,7 @@
   }
 
   function saveDuePayment() {
+    if (!canWriteData()) return;
     const sale = data.entries.find(entry => entry.invoiceNo === ui.dueInvoice);
     if (!sale) return;
     const due = saleDue(sale);
@@ -2320,6 +3046,7 @@
   }
 
   function deleteEntry(entryId) {
+    if (!currentUserAccess().canDeleteRecentEntries) return;
     const entry = data.entries.find(item => item.id === entryId);
     if (!entry) return;
     entryIdentityKeys(entry).forEach(key => {
@@ -2330,6 +3057,7 @@
   }
 
   function deleteAdvance(recordId) {
+    if (!currentUserAccess().canDeleteAdvanceEntries) return;
     const record = data.advanceRecords.find(item => item.id === recordId);
     if (!record) return;
     const deletedAt = Date.now();
@@ -2339,6 +3067,7 @@
   }
 
   function addStock() {
+    if (!canWriteData()) return;
     const nameEl = document.querySelector("[data-stock-name]");
     const qtyEl = document.querySelector("[data-stock-qty]");
     const name = titleCaseName(nameEl && nameEl.value || "").trim();
@@ -2356,8 +3085,199 @@
   }
 
   function deleteStock(name) {
+    if (!canWriteData()) return;
     data.stockItems = data.stockItems.filter(item => item.name !== name);
     persist();
+  }
+
+  function backupFileName() {
+    const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+$/, "").replace("T", "_");
+    return `IndianSteel_Backup_${stamp}.json`;
+  }
+
+  function createBackupFile() {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = backupFileName();
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    ui.backupStatus = "Backup file created successfully";
+    ui.backupStatusError = false;
+    scheduleRender();
+  }
+
+  async function restoreBackupFile(file) {
+    if (!canWriteData()) return;
+    try {
+      const raw = await file.text();
+      const restored = normalizeData(JSON.parse(raw));
+      data = restored;
+      ui.backupStatus = "Backup restored on this device. Sync with Drive manually if you want to upload it.";
+      ui.backupStatusError = false;
+      sync.status = "Backup restored locally";
+      persist();
+    } catch (error) {
+      ui.backupStatus = `Restore failed: ${error.message || "invalid backup file"}`;
+      ui.backupStatusError = true;
+      scheduleRender();
+    }
+  }
+
+  function setAdminRole(role) {
+    const draft = ensureAdminDraft();
+    draft.role = normalizeRole(role);
+    if (draft.role === "Admin") {
+      draft.canWrite = true;
+      draft.canDeleteRecentEntries = true;
+      draft.canDeleteAdvanceEntries = true;
+      draft.canDeleteDueEntries = true;
+      draft.visibility = defaultVisibilitySettings();
+    }
+    if (draft.role === "Viewer") {
+      draft.canWrite = false;
+      draft.canDeleteRecentEntries = false;
+      draft.canDeleteAdvanceEntries = false;
+      draft.canDeleteDueEntries = false;
+    }
+    ui.adminMessage = "";
+    scheduleRender();
+  }
+
+  function toggleAdminWrite() {
+    const draft = ensureAdminDraft();
+    if (normalizeRole(draft.role) !== "Staff") return;
+    draft.canWrite = !draft.canWrite;
+    ui.adminMessage = "";
+    scheduleRender();
+  }
+
+  function toggleAdminDelete(key) {
+    const draft = ensureAdminDraft();
+    if (normalizeRole(draft.role) !== "Staff") return;
+    const map = {
+      recent: "canDeleteRecentEntries",
+      advance: "canDeleteAdvanceEntries",
+      due: "canDeleteDueEntries"
+    };
+    const field = map[key];
+    if (!field) return;
+    draft[field] = !draft[field];
+    ui.adminMessage = "";
+    scheduleRender();
+  }
+
+  function toggleAdminVisibility(key) {
+    const draft = ensureAdminDraft();
+    if (normalizeRole(draft.role) === "Admin") return;
+    draft.visibility = normalizeVisibilitySettings(draft.visibility, defaultVisibilitySettings());
+    if (!Object.prototype.hasOwnProperty.call(draft.visibility, key)) return;
+    draft.visibility[key] = !draft.visibility[key];
+    ui.adminMessage = "";
+    scheduleRender();
+  }
+
+  function toggleAdminPage(key) {
+    const draft = ensureAdminDraft();
+    const effective = effectiveAdminDraft(draft);
+    if (effective.isAdmin || (key === "DataBackup" && effective.canWrite)) return;
+    const pageKey = normalizeAccessPage(key);
+    if (!pageKey) return;
+    draft.pages = normalizeAccessPages(draft.pages);
+    draft.pages = draft.pages.includes(pageKey)
+      ? draft.pages.filter(page => page !== pageKey)
+      : [...draft.pages, pageKey];
+    ui.adminMessage = "";
+    scheduleRender();
+  }
+
+  function loadAdminRule(email) {
+    const normalized = String(email || "").trim().toLowerCase();
+    const rule = (data.adminControls.users || []).find(item => item.email === normalized);
+    if (!rule) return;
+    ui.adminDraft = {
+      email: rule.email,
+      role: normalizeRole(rule.role),
+      canWrite: rule.canWrite === true,
+      canDeleteRecentEntries: rule.canDeleteRecentEntries === true,
+      canDeleteAdvanceEntries: rule.canDeleteAdvanceEntries === true,
+      canDeleteDueEntries: rule.canDeleteDueEntries === true,
+      pages: normalizeAccessPages(rule.pages),
+      visibility: normalizeVisibilitySettings(rule.visibility, defaultVisibilitySettings())
+    };
+    ui.adminMessage = `Loaded ${rule.email}.`;
+    scheduleRender();
+  }
+
+  function selectAdminEmail(email) {
+    const normalized = String(email || "").trim().toLowerCase();
+    const rule = (data.adminControls.users || []).find(item => item.email === normalized);
+    if (rule) {
+      loadAdminRule(normalized);
+      return;
+    }
+    ui.adminDraft = blankAdminDraft(normalized);
+    ui.adminMessage = `Selected ${normalized}. Add permissions and save.`;
+    scheduleRender();
+  }
+
+  function removeAdminRule(email) {
+    const normalized = String(email || "").trim().toLowerCase();
+    data.adminControls.users = (data.adminControls.users || []).filter(rule => rule.email !== normalized);
+    data.adminControls.updatedAt = Date.now();
+    data = normalizeData(data);
+    ui.adminMessage = `Removed ${normalized}.`;
+    persist();
+  }
+
+  function saveAdminRule() {
+    if (!isCurrentAdmin()) return;
+    const draft = ensureAdminDraft();
+    const email = String(draft.email || "").trim().toLowerCase();
+    const effective = effectiveAdminDraft(draft);
+    if (!email) {
+      ui.adminMessage = "Enter a Gmail address first.";
+      scheduleRender();
+      return;
+    }
+    if (BUILT_IN_ADMINS.has(email)) {
+      ui.adminMessage = "Admin Gmail always has full access.";
+      scheduleRender();
+      return;
+    }
+    const newRule = {
+      email,
+      role: effective.role,
+      canWrite: effective.canWrite,
+      canDeleteRecentEntries: effective.canDeleteRecentEntries,
+      canDeleteAdvanceEntries: effective.canDeleteAdvanceEntries,
+      canDeleteDueEntries: effective.canDeleteDueEntries,
+      pages: effective.pages,
+      visibility: effective.visibility
+    };
+    data.adminControls.users = [
+      ...(data.adminControls.users || []).filter(rule => rule.email !== email),
+      newRule
+    ].sort((a, b) => a.email.localeCompare(b.email));
+    data.adminControls.updatedAt = Date.now();
+    data = normalizeData(data);
+    ui.adminDraft = blankAdminDraft();
+    ui.adminMessage = `Access saved for ${email}.`;
+    sync.status = "Access controls saved locally";
+    persist();
+  }
+
+  function recordUserActivity(email) {
+    const normalized = String(email || "").trim().toLowerCase();
+    if (!normalized || !data) return;
+    data.userActivity = [
+      ...(data.userActivity || []).filter(item => String(item.email || "").toLowerCase() !== normalized),
+      { email: normalized, lastSeenAt: Date.now() }
+    ].sort((a, b) => Number(b.lastSeenAt || 0) - Number(a.lastSeenAt || 0));
+    void writeStore(DATA_KEY, data);
   }
 
   async function shareEntry(entryId) {
@@ -3001,6 +3921,7 @@
         lastLoginAt: Date.now(),
         localOnly: false
       };
+      recordUserActivity(email);
       persistSession();
       sync.status = "Google connected";
       await syncNow({ manual: true });
@@ -3102,7 +4023,7 @@
     }
     const tokenReady = await ensureToken({ manual });
     if (!tokenReady) {
-      if (manual) ui.profileOpen = true;
+      if (manual) ui.screen = "data-backup";
       scheduleRender();
       return;
     }
@@ -3236,6 +4157,8 @@
     data = normalizeData(savedData);
     session = savedSession || {};
     driveConfig = normalizeDriveConfig(savedDriveConfig);
+    applyThemeMode();
+    if (session.email) recordUserActivity(session.email);
     persistDriveConfig();
     sync.status = navigator.onLine ? "Ready" : "Offline ready";
     setupEntryDropdownDismissal();

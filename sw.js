@@ -1,13 +1,13 @@
-const CACHE_NAME = "indiansteel-pwa-20260501-pwa-fixes-14";
+const CACHE_NAME = "indiansteel-pwa-20260501-profile-page-15";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
-  "./styles.css?v=20260501-pwa-fixes-14",
+  "./styles.css?v=20260501-profile-page-15",
   "./app.js",
-  "./app.js?v=20260501-pwa-fixes-14",
+  "./app.js?v=20260501-profile-page-15",
   "./manifest.webmanifest",
-  "./manifest.webmanifest?v=20260501-pwa-fixes-14",
+  "./manifest.webmanifest?v=20260501-profile-page-15",
   "./icons/icon.svg",
   "./icons/indian-steel-logo.png",
   "./icons/whatsapp-icon.png",
