@@ -8,7 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-ios-nav-height-trim-apk-61";
+  const APP_BUILD_VERSION = "20260501-ios-nav-apk-menu-match-62";
   const THEME_COLORS = {
     light: "#0d5bdd",
     dark: "#0b1f46"
@@ -913,19 +913,19 @@
       @media (max-width: 480px) {
         .bottom-nav {
           bottom: 0 !important;
-          height: 56px !important;
-          min-height: 56px !important;
-          max-height: 56px !important;
-          padding-bottom: 6px !important;
-          grid-template-rows: 50px !important;
+          height: 76px !important;
+          min-height: 76px !important;
+          max-height: 76px !important;
+          padding-bottom: 0 !important;
+          grid-template-rows: 76px !important;
           align-content: end !important;
           align-items: center !important;
         }
         .nav-item {
-          height: 50px !important;
-          min-height: 50px !important;
-          max-height: 50px !important;
-          gap: 3px !important;
+          height: 76px !important;
+          min-height: 76px !important;
+          max-height: 76px !important;
+          gap: 4px !important;
           font-size: 10px !important;
           line-height: 12px !important;
         }
@@ -934,13 +934,13 @@
           height: 18px !important;
         }
         .nav-plus {
-          width: 44px !important;
-          height: 44px !important;
+          width: 54px !important;
+          height: 54px !important;
         }
         .nav-plus svg,
         .round-add svg {
-          width: 26px !important;
-          height: 26px !important;
+          width: 30px !important;
+          height: 30px !important;
         }
       }
     `;
@@ -975,13 +975,13 @@
       root.dataset.pwaPlatform = isiOS ? "ios" : "other";
       root.classList.toggle("ios-pwa-nav", installedIos);
       if (installedIos) {
-        root.style.setProperty("--nav-height", "50px");
-        root.style.setProperty("--nav-plus-size", "44px");
-        root.style.setProperty("--nav-plus-icon-size", "26px");
+        root.style.setProperty("--nav-height", "76px");
+        root.style.setProperty("--nav-plus-size", "54px");
+        root.style.setProperty("--nav-plus-icon-size", "30px");
         root.style.setProperty("--installed-nav-drop", "0px");
         root.style.setProperty("--ios-nav-bottom", "0px");
         root.style.setProperty("--ios-nav-safe-fill", "0px");
-        root.style.setProperty("--ios-nav-row-lift", "6px");
+        root.style.setProperty("--ios-nav-row-lift", "0px");
       } else {
         root.style.removeProperty("--nav-height");
         root.style.removeProperty("--nav-plus-size");

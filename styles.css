@@ -54,43 +54,43 @@
 
 :root[data-pwa-installed="true"][data-pwa-platform="ios"],
 :root.ios-pwa-nav {
-  --nav-height: 50px;
+  --nav-height: 76px;
   --installed-nav-drop: 0px;
   --ios-nav-bottom: 0px;
   --ios-nav-safe-fill: 0px;
-  --ios-nav-row-lift: 6px;
-  --nav-plus-size: 44px;
-  --nav-plus-icon-size: 26px;
+  --ios-nav-row-lift: 0px;
+  --nav-plus-size: 54px;
+  --nav-plus-icon-size: 30px;
 }
 
 @supports (-webkit-touch-callout: none) {
   @media (max-width: 480px) {
     :root.ios-pwa-nav {
-      --nav-height: 50px;
+      --nav-height: 76px;
       --installed-nav-drop: 0px;
       --ios-nav-bottom: 0px;
       --ios-nav-safe-fill: 0px;
-      --ios-nav-row-lift: 6px;
-      --nav-plus-size: 44px;
-      --nav-plus-icon-size: 26px;
+      --ios-nav-row-lift: 0px;
+      --nav-plus-size: 54px;
+      --nav-plus-icon-size: 30px;
     }
 
     :root.ios-pwa-nav .bottom-nav {
       bottom: 0 !important;
-      height: 56px !important;
-      min-height: 56px !important;
-      max-height: 56px !important;
-      padding-bottom: 6px !important;
-      grid-template-rows: 50px !important;
+      height: 76px !important;
+      min-height: 76px !important;
+      max-height: 76px !important;
+      padding-bottom: 0 !important;
+      grid-template-rows: 76px !important;
       align-content: end !important;
       align-items: center !important;
     }
 
     :root.ios-pwa-nav .nav-item {
-      height: 50px !important;
-      min-height: 50px !important;
-      max-height: 50px !important;
-      gap: 3px !important;
+      height: 76px !important;
+      min-height: 76px !important;
+      max-height: 76px !important;
+      gap: 4px !important;
       font-size: 10px !important;
       line-height: 12px !important;
     }
@@ -101,14 +101,14 @@
     }
 
     :root.ios-pwa-nav .nav-plus {
-      width: 44px !important;
-      height: 44px !important;
+      width: 54px !important;
+      height: 54px !important;
     }
 
     :root.ios-pwa-nav .nav-plus svg,
     :root.ios-pwa-nav .round-add svg {
-      width: 26px !important;
-      height: 26px !important;
+      width: 30px !important;
+      height: 30px !important;
     }
   }
 }
