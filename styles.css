@@ -26,6 +26,7 @@
   --installed-nav-drop: 0px;
   --ios-nav-bottom: calc(var(--system-nav-lift) - var(--installed-nav-drop));
   --ios-nav-safe-fill: 0px;
+  --ios-nav-row-lift: 0px;
   --nav-plus-size: 54px;
   --nav-plus-icon-size: 30px;
   --bottom-nav-space: calc(var(--nav-height) + var(--system-nav-lift));
@@ -53,59 +54,61 @@
 
 :root[data-pwa-installed="true"][data-pwa-platform="ios"],
 :root.ios-pwa-nav {
-  --nav-height: 40px;
+  --nav-height: 52px;
   --installed-nav-drop: 0px;
   --ios-nav-bottom: 0px;
   --ios-nav-safe-fill: var(--safe-bottom);
-  --nav-plus-size: 36px;
-  --nav-plus-icon-size: 22px;
+  --ios-nav-row-lift: 10px;
+  --nav-plus-size: 46px;
+  --nav-plus-icon-size: 26px;
 }
 
 @supports (-webkit-touch-callout: none) {
   @media (max-width: 480px) {
     :root.ios-pwa-nav {
-      --nav-height: 40px;
+      --nav-height: 52px;
       --installed-nav-drop: 0px;
       --ios-nav-bottom: 0px;
       --ios-nav-safe-fill: var(--safe-bottom);
-      --nav-plus-size: 36px;
-      --nav-plus-icon-size: 22px;
+      --ios-nav-row-lift: 10px;
+      --nav-plus-size: 46px;
+      --nav-plus-icon-size: 26px;
     }
 
     :root.ios-pwa-nav .bottom-nav {
       bottom: 0 !important;
-      height: calc(40px + var(--safe-bottom)) !important;
-      min-height: calc(40px + var(--safe-bottom)) !important;
-      max-height: calc(40px + var(--safe-bottom)) !important;
-      padding-bottom: 0 !important;
-      grid-template-rows: 40px !important;
+      height: calc(52px + var(--safe-bottom) + 10px) !important;
+      min-height: calc(52px + var(--safe-bottom) + 10px) !important;
+      max-height: calc(52px + var(--safe-bottom) + 10px) !important;
+      padding-bottom: 10px !important;
+      grid-template-rows: 52px !important;
       align-content: end !important;
       align-items: center !important;
     }
 
     :root.ios-pwa-nav .nav-item {
-      height: 40px !important;
-      min-height: 40px !important;
-      max-height: 40px !important;
-      gap: 1px !important;
-      font-size: 8px !important;
-      line-height: 10px !important;
+      height: 52px !important;
+      min-height: 52px !important;
+      max-height: 52px !important;
+      gap: 3px !important;
+      font-size: 10px !important;
+      line-height: 12px !important;
     }
 
     :root.ios-pwa-nav .nav-item svg {
-      width: 16px !important;
-      height: 16px !important;
+      width: 18px !important;
+      height: 18px !important;
     }
 
     :root.ios-pwa-nav .nav-plus {
-      width: 36px !important;
-      height: 36px !important;
+      width: 46px !important;
+      height: 46px !important;
     }
 
     :root.ios-pwa-nav .nav-plus svg,
     :root.ios-pwa-nav .round-add svg {
-      width: 22px !important;
-      height: 22px !important;
+      width: 26px !important;
+      height: 26px !important;
     }
   }
 }
@@ -1804,8 +1807,8 @@ select {
   bottom: var(--ios-nav-bottom);
   transform: translateX(-50%);
   width: min(100vw, 480px);
-  height: calc(var(--nav-height) + var(--ios-nav-safe-fill));
-  padding-bottom: 0;
+  height: calc(var(--nav-height) + var(--ios-nav-safe-fill) + var(--ios-nav-row-lift));
+  padding-bottom: var(--ios-nav-row-lift);
   background: var(--card);
   border-top: 1px solid var(--line);
   display: grid;
