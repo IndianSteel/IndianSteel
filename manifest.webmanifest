@@ -5,9 +5,10 @@
   "description": "Offline daily sales, advance payments, due payments, stock, reports and Drive sync.",
   "start_url": "./",
   "scope": "./",
-  "display": "standalone",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
   "orientation": "portrait",
-  "background_color": "#f5f7fb",
+  "background_color": "#0d5bdd",
   "theme_color": "#0d5bdd",
   "categories": ["business", "productivity", "finance"],
   "icons": [
