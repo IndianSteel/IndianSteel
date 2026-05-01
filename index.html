@@ -12,10 +12,25 @@
   <meta name="application-name" content="IndianSteel">
   <meta name="description" content="Offline daily sales, advances, dues, reports, history and Drive sync for Indian Steel.">
   <title>IndianSteel</title>
-  <link rel="manifest" href="./manifest.webmanifest?v=20260501-android-dashboard-header-apk-65">
+  <script>
+    (function () {
+      var ua = navigator.userAgent || "";
+      var isiOS = /iPad|iPhone|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      if (/Android/i.test(ua) && !isiOS) {
+        var root = document.documentElement;
+        root.classList.add("android-pwa-header");
+        root.dataset.pwaPlatform = "android";
+        root.dataset.pwaInstalled = "true";
+        root.style.setProperty("--status-top", "0px");
+        root.style.setProperty("--header-title-top", "0px");
+        root.style.setProperty("--header-title-icon-top", "0px");
+      }
+    }());
+  </script>
+  <link rel="manifest" href="./manifest.webmanifest?v=20260501-android-title-line-apk-66">
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="./icons/indian-steel-logo.png?v=20260501-android-dashboard-header-apk-65">
-  <link rel="stylesheet" href="./styles.css?v=20260501-android-dashboard-header-apk-65">
+  <link rel="apple-touch-icon" href="./icons/indian-steel-logo.png?v=20260501-android-title-line-apk-66">
+  <link rel="stylesheet" href="./styles.css?v=20260501-android-title-line-apk-66">
 </head>
 <body>
   <div id="app" class="app-shell" aria-live="polite">
@@ -25,6 +40,6 @@
       <span>Loading offline app...</span>
     </div>
   </div>
-  <script src="./app.js?v=20260501-android-dashboard-header-apk-65" defer></script>
+  <script src="./app.js?v=20260501-android-title-line-apk-66" defer></script>
 </body>
 </html>

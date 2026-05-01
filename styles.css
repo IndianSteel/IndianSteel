@@ -82,10 +82,26 @@
 
 :root.android-pwa-header .hero {
   height: 210px;
+  padding-top: 0;
 }
 
 :root.android-pwa-header .hero-top {
   height: 38px;
+}
+
+:root.android-pwa-header .blue-header {
+  padding-top: 0;
+}
+
+:root.android-pwa-header .blue-header h1 {
+  height: 38px;
+  margin-top: 0;
+  display: grid;
+  place-items: center;
+}
+
+:root.android-pwa-header .settlement-header-action {
+  margin-top: 2px;
 }
 
 :root.android-pwa-header .hero h2 {
