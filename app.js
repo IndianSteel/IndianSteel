@@ -8,7 +8,11 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-settlements-apk-37";
+  const APP_BUILD_VERSION = "20260501-fixed-scroll-apk-42";
+  const THEME_COLORS = {
+    light: "#0d5bdd",
+    dark: "#0b1f46"
+  };
   const DRIVE_FILE_NAME = "indiansteel_daily_sales_sync.json";
   const GOOGLE_DRIVE_CLIENT_ID = "18090278328-i9k2i3e78062hbfhpu7pkhe1s7uvuhql.apps.googleusercontent.com";
   const GOOGLE_DRIVE_FOLDER_ID = "1uqSmcaXlqAzGZ1QR0JctoORJsLNQrmy3";
@@ -79,6 +83,9 @@
     historyTo: "",
     historyDatePicker: "",
     historyCalendarMonth: "",
+    historyMonthPickerOpen: false,
+    historyYearPickerOpen: false,
+    historyPickerYear: "",
     addOpen: false,
     addStep: "Customer",
     addDraft: null,
@@ -883,7 +890,10 @@
   }
 
   function applyThemeMode() {
-    document.documentElement.dataset.theme = appThemeMode();
+    const mode = appThemeMode();
+    document.documentElement.dataset.theme = mode;
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) themeMeta.setAttribute("content", THEME_COLORS[mode] || THEME_COLORS.light);
   }
 
   function scrollPopupAccountOptionsIntoView() {
@@ -1030,18 +1040,20 @@
             </div>
           </section>
         </section>
-        ${visibility.dashboardSummaryCardsVisible ? `<section class="grid-3 dashboard-stats">
-          ${statCard("Monthly Sales", money(t.monthlySales), "wallet", "green", 'data-screen="reports" data-report="Monthly"')}
-          ${statCard("Advances", money(t.advanceTotal), "card", "blue", 'data-settlement-open="advance"')}
-          ${statCard("Due Payments", money(t.dueTotal), "card", "red", 'data-settlement-open="due"')}
-        </section>` : ""}
-        ${visibility.dashboardSalesOverviewVisible ? `<section class="card section dashboard-section">
-          <div class="section-title"><h2>Sales Overview (Last 7 Days)</h2><button class="link-button" data-screen="reports">View All</button></div>
-          ${dashboardChart(weekly)}
-        </section>` : ""}
-        <section class="card section dashboard-section recent-section">
-          <div class="section-title"><h2>Recent Entries</h2><button class="link-button history-icon-button" data-screen="history" aria-label="Open history">${svg("history")}</button></div>
-          ${recent.length ? recent.map((entry, index) => dashboardEntryRow(entry) + (index < recent.length - 1 ? '<div class="divider"></div>' : "")).join("") : '<div class="empty">No entries yet.</div>'}
+        <section class="page-scroll dashboard-scroll">
+          ${visibility.dashboardSummaryCardsVisible ? `<section class="grid-3 dashboard-stats">
+            ${statCard("Monthly Sales", money(t.monthlySales), "wallet", "green", 'data-screen="reports" data-report="Monthly"')}
+            ${statCard("Advances", money(t.advanceTotal), "card", "blue", 'data-settlement-open="advance"')}
+            ${statCard("Due Payments", money(t.dueTotal), "card", "red", 'data-settlement-open="due"')}
+          </section>` : ""}
+          ${visibility.dashboardSalesOverviewVisible ? `<section class="card section dashboard-section">
+            <div class="section-title"><h2>Sales Overview (Last 7 Days)</h2><button class="link-button" data-screen="reports">View All</button></div>
+            ${dashboardChart(weekly)}
+          </section>` : ""}
+          <section class="card section dashboard-section recent-section">
+            <div class="section-title"><h2>Recent Entries</h2><button class="link-button history-icon-button" data-screen="history" aria-label="Open history">${svg("history")}</button></div>
+            ${recent.length ? recent.map((entry, index) => dashboardEntryRow(entry) + (index < recent.length - 1 ? '<div class="divider"></div>' : "")).join("") : '<div class="empty">No entries yet.</div>'}
+          </section>
         </section>
       </main>`;
   }
@@ -1539,10 +1551,10 @@
     const t = totals();
     const ranges = ["Daily", "Weekly", "Monthly", "Yearly", "Custom"];
     return `
-      <main class="page">
+      <main class="page reports-page">
         ${blueHeader("Reports")}
         <div class="tabs">${ranges.map(range => `<button class="tab ${ui.reportRange === range ? "active" : ""}" data-report-range="${range}">${range}</button>`).join("")}</div>
-        <section class="content">
+        <section class="page-scroll content reports-scroll">
           <div class="grid-2" style="margin:10px 16px">
             <div class="card total-card"><small>Total Sales</small><b>${esc(money(t.sales))}</b></div>
             <div class="card total-card"><small>Monthly Sales</small><b>${esc(money(t.monthlySales))}</b></div>
@@ -1556,43 +1568,56 @@
 
   function stockScreen() {
     return `
-      <main class="page">
+      <main class="page stock-page">
         ${blueHeader("Stock")}
-        <section class="section card">
-          <div class="section-title"><h2>Stock Items</h2><button class="link-button" data-action="add-stock">Add</button></div>
-          <div class="form-row">
-            <input class="field" data-stock-name placeholder="Item name">
-            <input class="field" data-stock-qty inputmode="decimal" placeholder="Qty">
-          </div>
+        <section class="page-scroll stock-scroll">
+          <section class="section card">
+            <div class="section-title"><h2>Stock Items</h2><button class="link-button" data-action="add-stock">Add</button></div>
+            <div class="form-row">
+              <input class="field" data-stock-name placeholder="Item name">
+              <input class="field" data-stock-qty inputmode="decimal" placeholder="Qty">
+            </div>
+          </section>
+          ${data.stockItems.length ? data.stockItems.map(item => `
+            <article class="card stock-row">
+              <span class="tile blue">${svg("stock")}</span>
+              <span class="row-main"><b>${esc(item.name)}</b><span>Low limit ${esc(numberText(item.lowStockLimit))}</span></span>
+              <span class="row-right"><span class="money">${esc(numberText(item.quantity))}</span></span>
+              <button class="mini-action danger" data-delete-stock="${esc(item.name)}">${svg("delete")}</button>
+            </article>`).join("") : '<section class="card section empty">No stock items yet.</section>'}
         </section>
-        ${data.stockItems.length ? data.stockItems.map(item => `
-          <article class="card stock-row">
-            <span class="tile blue">${svg("stock")}</span>
-            <span class="row-main"><b>${esc(item.name)}</b><span>Low limit ${esc(numberText(item.lowStockLimit))}</span></span>
-            <span class="row-right"><span class="money">${esc(numberText(item.quantity))}</span></span>
-            <button class="mini-action danger" data-delete-stock="${esc(item.name)}">${svg("delete")}</button>
-          </article>`).join("") : '<section class="card section empty">No stock items yet.</section>'}
       </main>`;
   }
 
   function historyScreen() {
-    const entries = filteredHistoryEntries();
-    const grouped = groupBy(entries, entry => entry.dateLabel || "-");
     const dateSelected = ui.historyFrom || ui.historyTo;
     const visibility = effectiveVisibility();
     const showPrintButton = visibility.historyPrintButtonVisible !== false;
-    const showDailySalesTotal = visibility.historyDailySalesTotalVisible !== false;
     return `
-      <main class="page">
+      <main class="page history-page">
         ${blueHeader("History")}
-        <section class="history-tools">
-          <input class="field" data-history-search placeholder="Search customer, item or price" value="${esc(ui.historySearch)}">
-          <div class="date-row ${showPrintButton ? "with-print" : "without-print"}">
-            ${historyDateBox("from", "From", "From date", ui.historyFrom, "", ui.historyTo || todayInputDate())}
-            ${historyDateBox("to", "To", "To date", ui.historyTo, ui.historyFrom, todayInputDate())}
-            ${showPrintButton ? `<button class="print-button" ${dateSelected ? "" : "disabled"} data-action="print-history">${svg("print")}</button>` : ""}
+        <section class="page-scroll history-scroll">
+          <section class="history-tools">
+            <input class="field" data-history-search placeholder="Search customer, item or price" value="${esc(ui.historySearch)}">
+            <div class="date-row ${showPrintButton ? "with-print" : "without-print"}">
+              ${historyDateBox("from", "From", "From date", ui.historyFrom, "", ui.historyTo || todayInputDate())}
+              ${historyDateBox("to", "To", "To date", ui.historyTo, ui.historyFrom, todayInputDate())}
+              ${showPrintButton ? `<button class="print-button" ${dateSelected ? "" : "disabled"} data-action="print-history">${svg("print")}</button>` : ""}
+            </div>
+          </section>
+          <div data-history-results>
+            ${historyResultsMarkup()}
           </div>
         </section>
+      </main>`;
+  }
+
+  function historyResultsMarkup() {
+    const entries = filteredHistoryEntries();
+    const grouped = groupBy(entries, entry => entry.dateLabel || "-");
+    const visibility = effectiveVisibility();
+    const showDailySalesTotal = visibility.historyDailySalesTotalVisible !== false;
+    return `
         ${Object.keys(grouped).length ? Object.entries(grouped).map(([date, rows]) => `
           <section class="card section history-date-card">
             <div class="section-title">
@@ -1603,7 +1628,7 @@
               ${rows.map(entry => `<div class="history-entry-card">${entryRow(entry, "history")}</div>`).join("")}
             </div>
           </section>`).join("") : '<section class="card section empty">No entries found.</section>'}
-      </main>`;
+      `;
   }
 
   function historyDateBox(kind, label, placeholder, value, min, max) {
@@ -1630,6 +1655,7 @@
     const previousEnabled = monthHasAllowedDate(previousMonth, bounds);
     const nextEnabled = monthHasAllowedDate(nextMonth, bounds);
     const title = inputDateObject(month).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+    const pickerYear = historyCalendarPickerYear(month);
     return `
       <div class="overlay calendar-overlay" data-overlay-close="history-calendar">
         <section class="calendar-dialog" data-sheet>
@@ -1639,22 +1665,61 @@
           </div>
           <div class="calendar-month-bar">
             <button class="calendar-nav" type="button" data-action="history-calendar-prev" ${previousEnabled ? "" : "disabled"}>${svg("chevron-left")}</button>
-            <span>${esc(title)}</span>
+            <button class="calendar-month-title" type="button" data-action="toggle-history-month-picker">${esc(title)}</button>
             <button class="calendar-nav" type="button" data-action="history-calendar-next" ${nextEnabled ? "" : "disabled"}>${svg("chevron-right")}</button>
           </div>
-          <div class="calendar-weekdays">
-            ${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => `<span>${day}</span>`).join("")}
-          </div>
-          <div class="calendar-grid">
-            ${cells.map(cell => {
-              const allowed = isDateAllowedForHistory(cell.input, bounds);
-              const selectedClass = selected === cell.input ? " selected" : "";
-              const outsideClass = cell.inMonth ? "" : " outside";
-              return `<button class="calendar-day${selectedClass}${outsideClass}" type="button" data-calendar-day="${esc(cell.input)}" ${allowed ? "" : "disabled"}>${cell.day}</button>`;
-            }).join("")}
-          </div>
+          ${ui.historyMonthPickerOpen ? historyCalendarMonthPicker(month, pickerYear, bounds) : `
+            <div class="calendar-weekdays">
+              ${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => `<span>${day}</span>`).join("")}
+            </div>
+            <div class="calendar-grid">
+              ${cells.map(cell => {
+                const allowed = isDateAllowedForHistory(cell.input, bounds);
+                const selectedClass = selected === cell.input ? " selected" : "";
+                const outsideClass = cell.inMonth ? "" : " outside";
+                return `<button class="calendar-day${selectedClass}${outsideClass}" type="button" data-calendar-day="${esc(cell.input)}" ${allowed ? "" : "disabled"}>${cell.day}</button>`;
+              }).join("")}
+            </div>
+          `}
+          <p class="calendar-selected">Selected: ${esc(selected ? dateInputToLabel(selected) : "-")}</p>
         </section>
       </div>`;
+  }
+
+  function historyCalendarMonthPicker(month, pickerYear, bounds) {
+    const selectedDate = inputDateObject(month);
+    const selectedMonth = selectedDate.getMonth();
+    const selectedYear = selectedDate.getFullYear();
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const years = historyCalendarYearOptions(pickerYear);
+    return `
+      <section class="calendar-picker-panel">
+        <div class="calendar-year-row">
+          <button class="calendar-year-step" type="button" data-action="history-year-prev">${svg("chevron-left")}</button>
+          <button class="calendar-year-pill ${ui.historyYearPickerOpen ? "active" : ""}" type="button" data-action="toggle-history-year-picker">${esc(String(pickerYear))}</button>
+          <button class="calendar-year-step" type="button" data-action="history-year-next">${svg("chevron-right")}</button>
+        </div>
+        <div class="calendar-picker-body">
+          ${ui.historyYearPickerOpen ? `
+            <div class="calendar-year-list">
+              ${years.map(year => {
+                const selectedClass = year === pickerYear ? " selected" : "";
+                const disabled = !yearHasAllowedDate(year, bounds);
+                return `<button class="calendar-year-option${selectedClass}" type="button" data-history-year="${year}" ${disabled ? "disabled" : ""}>${year}</button>`;
+              }).join("")}
+            </div>
+          ` : `
+            <div class="calendar-month-grid">
+              ${months.map((name, index) => {
+                const monthInput = monthInputFromYearMonth(pickerYear, index);
+                const disabled = !monthHasAllowedDate(monthInput, bounds);
+                const selectedClass = index === selectedMonth && pickerYear === selectedYear ? " selected" : "";
+                return `<button class="calendar-month-option${selectedClass}" type="button" data-history-month="${index}" ${disabled ? "disabled" : ""}>${esc(name)}</button>`;
+              }).join("")}
+            </div>
+          `}
+        </div>
+      </section>`;
   }
 
   function filteredHistoryEntries() {
@@ -1751,6 +1816,41 @@
     if (bounds.min && monthEnd < bounds.min) return false;
     if (bounds.max && monthStart > bounds.max) return false;
     return true;
+  }
+
+  function monthInputFromYearMonth(year, monthIndex) {
+    const safeYear = Number(year) || inputDateObject(todayInputDate()).getFullYear();
+    const safeMonth = Math.min(11, Math.max(0, Number(monthIndex) || 0));
+    return `${safeYear}-${String(safeMonth + 1).padStart(2, "0")}-01`;
+  }
+
+  function historyCalendarPickerYear(monthInput) {
+    const visibleYear = inputDateObject(normalizeMonthInput(monthInput || todayInputDate())).getFullYear();
+    const year = Number(ui.historyPickerYear);
+    return Number.isFinite(year) && year > 0 ? year : visibleYear;
+  }
+
+  function historyCalendarYearOptions(centerYear) {
+    const center = Number(centerYear) || inputDateObject(todayInputDate()).getFullYear();
+    return Array.from({ length: 81 }, (_, index) => center - 40 + index);
+  }
+
+  function yearHasAllowedDate(year, bounds) {
+    const safeYear = Number(year);
+    if (!Number.isFinite(safeYear)) return false;
+    if (bounds.min && `${safeYear}-12-31` < bounds.min) return false;
+    if (bounds.max && `${safeYear}-01-01` > bounds.max) return false;
+    return true;
+  }
+
+  function nearestAllowedMonthForYear(year, preferredMonth, bounds) {
+    const preferred = monthInputFromYearMonth(year, preferredMonth);
+    if (monthHasAllowedDate(preferred, bounds)) return preferred;
+    for (let index = 0; index < 12; index += 1) {
+      const month = monthInputFromYearMonth(year, index);
+      if (monthHasAllowedDate(month, bounds)) return month;
+    }
+    return "";
   }
 
   function groupBy(items, keyFn) {
@@ -3067,11 +3167,7 @@
     document.querySelectorAll("[data-report]").forEach(el => el.addEventListener("click", () => {
       ui.reportRange = el.dataset.report;
     }));
-    document.querySelectorAll("[data-toggle-entry]").forEach(el => el.addEventListener("click", event => {
-      if (event.target.closest("button,a,input,select,textarea,label")) return;
-      toggleEntryDropdown(el.dataset.toggleEntry, el.dataset.source);
-      scheduleRender();
-    }));
+    bindEntryResultActions(document);
     document.querySelectorAll("[data-toggle-advance]").forEach(el => el.addEventListener("click", event => {
       if (event.target.closest("button,a,input,select,textarea,label")) return;
       ui.advanceOpenKey = ui.advanceOpenKey === el.dataset.toggleAdvance ? "" : el.dataset.toggleAdvance;
@@ -3222,7 +3318,6 @@
       ui.addDraft.items.splice(Number(el.dataset.removeItem), 1);
       scheduleRender();
     }));
-    document.querySelectorAll("[data-delete-entry]").forEach(el => el.addEventListener("click", () => deleteEntry(el.dataset.deleteEntry)));
     document.querySelectorAll("[data-delete-advance]").forEach(el => el.addEventListener("click", () => deleteAdvance(el.dataset.deleteAdvance)));
     document.querySelectorAll("[data-open-due]").forEach(el => el.addEventListener("click", () => openDueSheet(el.dataset.openDue)));
     document.querySelectorAll("[data-open-release-advance]").forEach(el => el.addEventListener("click", () => openAdvanceRelease(el.dataset.openReleaseAdvance)));
@@ -3230,15 +3325,16 @@
     document.querySelectorAll("[data-share-advance]").forEach(el => el.addEventListener("click", () => void shareAdvancePayment(el.dataset.shareAdvance)));
     document.querySelectorAll("[data-share-due]").forEach(el => el.addEventListener("click", () => void shareDuePaymentSummary(el.dataset.shareDue)));
     document.querySelectorAll("[data-delete-stock]").forEach(el => el.addEventListener("click", () => deleteStock(el.dataset.deleteStock)));
-    document.querySelectorAll("[data-share-entry]").forEach(el => el.addEventListener("click", () => shareEntry(el.dataset.shareEntry)));
     const historySearch = document.querySelector("[data-history-search]");
     if (historySearch) historySearch.addEventListener("input", () => {
       ui.historySearch = historySearch.value;
       ui.historyOpen = "";
-      scheduleRender();
+      refreshHistoryResults();
     });
     document.querySelectorAll("[data-history-date]").forEach(el => el.addEventListener("click", () => openHistoryDatePicker(el.dataset.historyDate)));
     document.querySelectorAll("[data-calendar-day]").forEach(el => el.addEventListener("click", () => selectHistoryDate(el.dataset.calendarDay)));
+    document.querySelectorAll("[data-history-month]").forEach(el => el.addEventListener("click", () => selectHistoryMonth(el.dataset.historyMonth)));
+    document.querySelectorAll("[data-history-year]").forEach(el => el.addEventListener("click", () => selectHistoryYear(el.dataset.historyYear)));
     document.querySelectorAll("[data-theme-mode]").forEach(el => el.addEventListener("click", () => {
       setThemeMode(el.dataset.themeMode);
       scheduleRender();
@@ -3268,6 +3364,23 @@
     document.querySelectorAll("[data-admin-select-email]").forEach(el => el.addEventListener("click", () => selectAdminEmail(el.dataset.adminSelectEmail)));
   }
 
+  function bindEntryResultActions(root) {
+    root.querySelectorAll("[data-toggle-entry]").forEach(el => el.addEventListener("click", event => {
+      if (event.target.closest("button,a,input,select,textarea,label")) return;
+      toggleEntryDropdown(el.dataset.toggleEntry, el.dataset.source);
+      scheduleRender();
+    }));
+    root.querySelectorAll("[data-delete-entry]").forEach(el => el.addEventListener("click", () => deleteEntry(el.dataset.deleteEntry)));
+    root.querySelectorAll("[data-share-entry]").forEach(el => el.addEventListener("click", () => shareEntry(el.dataset.shareEntry)));
+  }
+
+  function refreshHistoryResults() {
+    const results = document.querySelector("[data-history-results]");
+    if (!results) return;
+    results.innerHTML = historyResultsMarkup();
+    bindEntryResultActions(results);
+  }
+
   function toggleEntryDropdown(key, source) {
     if (!key) return;
     if (source === "history") {
@@ -3285,6 +3398,9 @@
     const bounds = historyPickerBounds(target);
     ui.historyDatePicker = target;
     ui.historyCalendarMonth = normalizeMonthInput(selected || bounds.max || todayInputDate());
+    ui.historyMonthPickerOpen = false;
+    ui.historyYearPickerOpen = false;
+    ui.historyPickerYear = String(inputDateObject(ui.historyCalendarMonth).getFullYear());
     ui.historyOpen = "";
     scheduleRender();
   }
@@ -3302,6 +3418,9 @@
     }
     ui.historyDatePicker = "";
     ui.historyCalendarMonth = "";
+    ui.historyMonthPickerOpen = false;
+    ui.historyYearPickerOpen = false;
+    ui.historyPickerYear = "";
     ui.historyOpen = "";
     scheduleRender();
   }
@@ -3312,7 +3431,40 @@
     const nextMonth = shiftMonthInput(ui.historyCalendarMonth || todayInputDate(), delta);
     if (monthHasAllowedDate(nextMonth, bounds)) {
       ui.historyCalendarMonth = nextMonth;
+      ui.historyPickerYear = String(inputDateObject(nextMonth).getFullYear());
     }
+  }
+
+  function adjustHistoryPickerYear(delta) {
+    if (!ui.historyDatePicker || !ui.historyMonthPickerOpen) return;
+    ui.historyPickerYear = String(historyCalendarPickerYear(ui.historyCalendarMonth || todayInputDate()) + delta);
+  }
+
+  function selectHistoryYear(yearValue) {
+    if (!ui.historyDatePicker) return;
+    const year = Number(yearValue);
+    const bounds = historyPickerBounds(ui.historyDatePicker);
+    if (!yearHasAllowedDate(year, bounds)) return;
+    const currentMonth = inputDateObject(ui.historyCalendarMonth || todayInputDate()).getMonth();
+    const nextMonth = nearestAllowedMonthForYear(year, currentMonth, bounds);
+    ui.historyPickerYear = String(year);
+    if (nextMonth) ui.historyCalendarMonth = nextMonth;
+    ui.historyYearPickerOpen = false;
+    scheduleRender();
+  }
+
+  function selectHistoryMonth(monthValue) {
+    if (!ui.historyDatePicker) return;
+    const month = Number(monthValue);
+    const bounds = historyPickerBounds(ui.historyDatePicker);
+    const year = historyCalendarPickerYear(ui.historyCalendarMonth || todayInputDate());
+    const nextMonth = monthInputFromYearMonth(year, month);
+    if (!monthHasAllowedDate(nextMonth, bounds)) return;
+    ui.historyCalendarMonth = nextMonth;
+    ui.historyPickerYear = String(year);
+    ui.historyMonthPickerOpen = false;
+    ui.historyYearPickerOpen = false;
+    scheduleRender();
   }
 
   function handleAction(event, action) {
@@ -3354,6 +3506,16 @@
     if (action === "close-history-calendar") closeOverlay("history-calendar");
     if (action === "history-calendar-prev") shiftHistoryCalendar(-1);
     if (action === "history-calendar-next") shiftHistoryCalendar(1);
+    if (action === "toggle-history-month-picker") {
+      ui.historyMonthPickerOpen = !ui.historyMonthPickerOpen;
+      ui.historyYearPickerOpen = false;
+      ui.historyPickerYear = String(inputDateObject(ui.historyCalendarMonth || todayInputDate()).getFullYear());
+    }
+    if (action === "toggle-history-year-picker" && ui.historyMonthPickerOpen) {
+      ui.historyYearPickerOpen = !ui.historyYearPickerOpen;
+    }
+    if (action === "history-year-prev") adjustHistoryPickerYear(-1);
+    if (action === "history-year-next") adjustHistoryPickerYear(1);
     if (action === "sync-now") void syncNow({ manual: true });
     if (action === "choose-profile-logo") {
       const input = document.querySelector("[data-profile-logo-file]");
@@ -3391,6 +3553,9 @@
     if (name === "history-calendar") {
       ui.historyDatePicker = "";
       ui.historyCalendarMonth = "";
+      ui.historyMonthPickerOpen = false;
+      ui.historyYearPickerOpen = false;
+      ui.historyPickerYear = "";
     }
     ui.error = "";
     scheduleRender();

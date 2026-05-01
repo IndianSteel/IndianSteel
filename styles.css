@@ -16,7 +16,9 @@
   --soft-red: #fff1f2;
   --shadow: 0 2px 8px rgba(15, 23, 42, .13);
   --nav-height: 82px;
+  --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --status-fill-height: max(var(--safe-top), 0px);
 }
 
 :root[data-theme="dark"] {
@@ -42,8 +44,11 @@
 html,
 body {
   margin: 0;
+  height: 100%;
   min-height: 100%;
-  background: #111827;
+  background:
+    linear-gradient(var(--header-blue), var(--header-blue)) top center / min(100vw, 480px) calc(120px + var(--safe-top)) no-repeat fixed,
+    #111827;
   color: var(--ink);
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -53,7 +58,33 @@ body {
 }
 
 body {
+  overflow: hidden;
   overscroll-behavior-y: none;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  z-index: 1000;
+  top: 0;
+  left: 50%;
+  width: min(100vw, 480px);
+  height: var(--status-fill-height);
+  transform: translateX(-50%);
+  background: var(--header-blue);
+  pointer-events: none;
+}
+
+@media (max-width: 480px), (display-mode: standalone), (display-mode: fullscreen) {
+  html {
+    background: var(--header-blue);
+  }
+
+  body {
+    background:
+      linear-gradient(var(--header-blue), var(--header-blue)) top / 100% calc(120px + var(--safe-top)) no-repeat fixed,
+      var(--bg);
+  }
 }
 
 button,
@@ -84,11 +115,14 @@ select {
 
 .app-shell {
   width: min(100vw, 480px);
+  height: var(--app-stable-height, 100dvh);
   min-height: 100dvh;
   margin: 0 auto;
-  background: var(--bg);
+  background:
+    linear-gradient(var(--header-blue), var(--header-blue)) top / 100% calc(98px + var(--safe-top)) no-repeat,
+    var(--bg);
   position: relative;
-  overflow-x: hidden;
+  overflow: hidden;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, .08);
 }
 
@@ -122,8 +156,31 @@ select {
 }
 
 .page {
-  min-height: 100dvh;
-  padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 20px);
+  height: var(--app-stable-height, 100dvh);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0;
+  background: var(--bg);
+}
+
+.page-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 18px);
+}
+
+.blue-header,
+.dashboard-hero-stack,
+.profile-edit-header,
+.settlement-tabs-card,
+.tabs {
+  flex: 0 0 auto;
 }
 
 .blue-header,
@@ -134,7 +191,7 @@ select {
 
 .blue-header {
   height: 98px;
-  padding: calc(28px + env(safe-area-inset-top, 0px)) 16px 0;
+  padding: calc(28px + var(--safe-top)) 16px 0;
   display: grid;
   grid-template-columns: 1fr;
   align-items: center;
@@ -157,7 +214,7 @@ select {
   position: absolute;
   inset: 0 0 auto;
   height: 238px;
-  padding: calc(28px + env(safe-area-inset-top, 0px)) 16px 0;
+  padding: calc(28px + var(--safe-top)) 16px 0;
   border-bottom-left-radius: 50% 16%;
   border-bottom-right-radius: 50% 16%;
 }
@@ -1258,7 +1315,13 @@ select {
 }
 
 .settlement-content {
-  padding-top: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 0 0 calc(var(--nav-height) + var(--safe-bottom) + 18px);
 }
 
 .settlement-summary-grid {
@@ -1741,7 +1804,7 @@ select {
   z-index: 80;
   display: grid;
   place-items: start center;
-  padding: calc(12px + env(safe-area-inset-top, 0px)) 10px calc(var(--nav-height) + var(--safe-bottom) + 12px);
+  padding: calc(12px + var(--safe-top)) 10px calc(var(--nav-height) + var(--safe-bottom) + 12px);
   background: rgba(15, 23, 42, .28);
 }
 
@@ -1836,7 +1899,7 @@ select {
 
 .settlement-popup-overlay {
   z-index: 90;
-  padding: calc(8px + env(safe-area-inset-top, 0px)) 10px calc(var(--nav-height) + var(--safe-bottom) + 24px);
+  padding: calc(8px + var(--safe-top)) 10px calc(var(--nav-height) + var(--safe-bottom) + 24px);
   background: rgba(15, 23, 42, .12);
 }
 
@@ -2261,7 +2324,7 @@ select {
 
 .due-popup-overlay {
   z-index: 92;
-  padding-top: calc(96px + env(safe-area-inset-top, 0px));
+  padding-top: calc(96px + var(--safe-top));
 }
 
 .due-edit-popup {
@@ -2355,7 +2418,7 @@ select {
 .settlement-release-overlay {
   z-index: 94;
   place-items: start center;
-  padding: calc(96px + env(safe-area-inset-top, 0px)) 18px calc(var(--nav-height) + var(--safe-bottom) + 24px);
+  padding: calc(96px + var(--safe-top)) 18px calc(var(--nav-height) + var(--safe-bottom) + 24px);
   background: rgba(15, 23, 42, .12);
 }
 
@@ -2520,7 +2583,7 @@ select {
   position: relative;
   z-index: 1;
   min-height: 100dvh;
-  padding: calc(62px + env(safe-area-inset-top, 0px)) 18px 28px;
+  padding: calc(62px + var(--safe-top)) 18px 28px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2666,6 +2729,12 @@ select {
 }
 
 .profile-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding: 12px 0 calc(var(--nav-height) + var(--safe-bottom) + 18px);
 }
 
@@ -2836,7 +2905,7 @@ select {
 
 .profile-edit-header {
   height: 98px;
-  padding: calc(28px + env(safe-area-inset-top, 0px)) 16px 0;
+  padding: calc(28px + var(--safe-top)) 16px 0;
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) 36px;
   align-items: center;
@@ -2869,8 +2938,15 @@ select {
 }
 
 .profile-edit-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding: 14px 16px calc(var(--nav-height) + var(--safe-bottom) + 18px);
   display: grid;
+  align-content: start;
   gap: 12px;
 }
 
@@ -3790,7 +3866,7 @@ select {
 
 .calendar-overlay {
   place-items: center;
-  padding: calc(18px + env(safe-area-inset-top, 0px)) 14px calc(18px + env(safe-area-inset-bottom, 0px));
+  padding: calc(18px + var(--safe-top)) 14px calc(18px + var(--safe-bottom));
 }
 
 .calendar-dialog {
@@ -3839,7 +3915,7 @@ select {
   color: #fff;
 }
 
-.calendar-month-bar span {
+.calendar-month-title {
   min-height: 34px;
   display: grid;
   place-items: center;
@@ -3847,6 +3923,7 @@ select {
   border: 1px solid rgba(255, 255, 255, .24);
   border-radius: 20px;
   background: rgba(255, 255, 255, .14);
+  color: #fff;
   font-size: 15px;
   line-height: 18px;
   font-weight: 900;
@@ -3925,6 +4002,122 @@ select {
 
 .calendar-day:disabled {
   opacity: .36;
+}
+
+.calendar-picker-panel {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+:root[data-theme="dark"] .calendar-picker-panel {
+  background: var(--card);
+}
+
+.calendar-year-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 10px;
+}
+
+.calendar-year-step,
+.calendar-year-pill {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.calendar-year-step {
+  display: grid;
+  place-items: center;
+}
+
+.calendar-year-step svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.calendar-year-pill {
+  border-radius: 16px;
+  font-size: 15px;
+  line-height: 18px;
+  font-weight: 900;
+}
+
+.calendar-year-pill.active {
+  background: var(--card);
+}
+
+.calendar-picker-body {
+  height: 184px;
+  margin-top: 12px;
+}
+
+.calendar-month-grid {
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.calendar-month-option,
+.calendar-year-option {
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.calendar-month-option {
+  font-size: 11px;
+  line-height: 13px;
+}
+
+.calendar-year-list {
+  height: 184px;
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+  padding-right: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.calendar-year-option {
+  min-height: 38px;
+  font-size: 12px;
+  line-height: 14px;
+}
+
+.calendar-month-option.selected,
+.calendar-year-option.selected {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+
+.calendar-month-option:disabled,
+.calendar-year-option:disabled {
+  opacity: .38;
+}
+
+.calendar-selected {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 13px;
+  font-weight: 700;
 }
 
 .history-date-card.section {
