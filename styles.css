@@ -191,7 +191,7 @@ select {
 
 .blue-header {
   height: 98px;
-  padding: calc(28px + var(--safe-top)) 16px 0;
+  padding: 28px 16px 0;
   display: grid;
   grid-template-columns: 1fr;
   align-items: center;
@@ -214,7 +214,7 @@ select {
   position: absolute;
   inset: 0 0 auto;
   height: 238px;
-  padding: calc(28px + var(--safe-top)) 16px 0;
+  padding: 28px 16px 0;
   border-bottom-left-radius: 50% 16%;
   border-bottom-right-radius: 50% 16%;
 }
@@ -2583,7 +2583,7 @@ select {
   position: relative;
   z-index: 1;
   min-height: 100dvh;
-  padding: calc(62px + var(--safe-top)) 18px 28px;
+  padding: 62px 18px 28px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2905,7 +2905,7 @@ select {
 
 .profile-edit-header {
   height: 98px;
-  padding: calc(28px + var(--safe-top)) 16px 0;
+  padding: 28px 16px 0;
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) 36px;
   align-items: center;
