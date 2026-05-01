@@ -47,6 +47,11 @@
   --installed-nav-drop: min(12px, var(--safe-bottom));
 }
 
+:root[data-pwa-installed="true"][data-pwa-platform="ios"] {
+  --nav-height: 64px;
+  --installed-nav-drop: 0px;
+}
+
 * {
   box-sizing: border-box;
 }
