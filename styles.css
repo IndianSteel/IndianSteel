@@ -1187,6 +1187,142 @@ select {
   border-radius: 6px;
 }
 
+.settlements-page {
+  background: var(--bg);
+}
+
+.settlements-header {
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+}
+
+.settlement-header-action {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: #fff;
+  background: rgba(255, 255, 255, .12);
+}
+
+.settlement-header-action svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  stroke: none;
+}
+
+.settlement-tabs-card {
+  display: flex;
+  gap: 10px;
+  margin: 0 16px;
+  padding: 13px 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  transform: translateY(-8px);
+}
+
+.settlement-content {
+  padding-top: 0;
+}
+
+.settlement-summary-grid {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 16px 8px;
+}
+
+.compact-total-card {
+  min-height: 66px;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+
+.settlement-list {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.settlement-card {
+  margin: 0 16px;
+  padding: 10px;
+}
+
+.settlement-card-main {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  cursor: pointer;
+}
+
+.settlement-card-main .tile {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+}
+
+.settlement-card-main .tile svg {
+  width: 20px;
+  height: 20px;
+}
+
+.settlement-card-main .row-main b {
+  font-size: 14px;
+  line-height: 17px;
+  font-weight: 900;
+}
+
+.settlement-card-main .row-main span {
+  font-size: 10px;
+  line-height: 12px;
+}
+
+.settlement-card-main .row-right {
+  min-width: 58px;
+}
+
+.settlement-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settlement-card-actions .mini-action {
+  width: 29px;
+  height: 29px;
+  border-radius: 8px;
+}
+
+.settlement-card-actions .mini-action svg {
+  width: 16px;
+  height: 16px;
+}
+
+.settlement-card-actions .whatsapp-action {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.settlement-card-actions .whatsapp-icon {
+  width: 23px;
+  height: 23px;
+}
+
+.settlement-detail {
+  margin: 12px 0 0;
+}
+
+.settlement-detail .detail-pay-mode small {
+  display: block;
+}
+
 .field,
 .select-field {
   width: 100%;
@@ -1446,6 +1582,439 @@ select {
   font-size: 13px;
   line-height: 16px;
   font-weight: 900;
+}
+
+.settlement-popup-overlay {
+  z-index: 90;
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 10px calc(var(--nav-height) + var(--safe-bottom) + 24px);
+  background: rgba(15, 23, 42, .12);
+}
+
+.settlement-popup {
+  width: min(100%, 456px);
+  min-height: 320px;
+  max-height: calc(100dvh - var(--nav-height) - var(--safe-bottom) - 32px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .24);
+}
+
+.settlement-popup-head {
+  height: 54px;
+  display: grid;
+  grid-template-columns: 1fr 32px;
+  align-items: center;
+  padding: 0 12px;
+  background: var(--header-blue);
+  color: #fff;
+}
+
+.settlement-popup-head b {
+  text-align: center;
+  font-size: 15px;
+  line-height: 18px;
+  font-weight: 900;
+}
+
+.settlement-popup-close {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--deep-blue);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, .32);
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 900;
+}
+
+.settlement-popup-close.dark {
+  background: var(--card);
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.settlement-popup-body {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 14px 96px;
+  background: var(--bg);
+}
+
+.entry-sketch-label {
+  display: block;
+  margin: 0 0 6px 2px;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 15px;
+  font-weight: 900;
+}
+
+.entry-sketch-field {
+  height: 38px;
+  margin-bottom: 12px;
+  background: var(--card);
+}
+
+.entry-sketch-field.centered {
+  text-align: center;
+  font-size: 18px;
+  line-height: 22px;
+  font-weight: 900;
+}
+
+.settlement-popup-section-title {
+  margin: 2px 0 8px;
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 18px;
+  font-weight: 900;
+}
+
+.settlement-item-list {
+  height: 140px;
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, .08);
+}
+
+.settlement-item-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 82px;
+  align-items: center;
+  gap: 8px;
+}
+
+.settlement-item-option label {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 800;
+}
+
+.settlement-item-option input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--blue);
+  flex: 0 0 auto;
+}
+
+.settlement-item-option label span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settlement-item-option .field {
+  height: 30px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.settlement-payment-editor {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, .08);
+}
+
+.settlement-pay-modes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.settlement-pay-mode {
+  min-height: 104px;
+}
+
+.settlement-pay-mode > span {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 18px;
+  font-weight: 900;
+}
+
+.settlement-pay-mode.active > span {
+  color: var(--green);
+}
+
+.settlement-pay-mode input {
+  height: 36px;
+  text-align: center;
+  font-size: 18px;
+  line-height: 22px;
+  font-weight: 900;
+}
+
+.account-select {
+  width: 100%;
+  height: 28px;
+  margin-top: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 10px;
+  line-height: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.editable-total-strip,
+.due-summary-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  min-height: 30px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--card);
+}
+
+.editable-total-strip span,
+.editable-total-strip input,
+.due-summary-strip span,
+.due-summary-strip b {
+  min-width: 0;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  text-align: center;
+  font-size: 10px;
+  line-height: 12px;
+  font-weight: 900;
+}
+
+.editable-total-strip input,
+.due-summary-strip b {
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+
+.settlement-max-note {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 13px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.settlement-popup-actions {
+  min-height: 64px;
+  display: grid;
+  place-items: center;
+  padding: 8px 14px 14px;
+  background: var(--bg);
+}
+
+.settlement-save-button {
+  width: 152px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: #4fcb5c;
+  color: #fff;
+  border: 1px solid rgba(17, 24, 39, .22);
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 900;
+}
+
+.due-popup-overlay {
+  z-index: 92;
+}
+
+.due-edit-popup {
+  border-radius: 10px;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+.due-popup-head {
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(92px, .82fr) 40px;
+  align-items: center;
+  background: var(--header-blue);
+  color: #fff;
+  padding: 6px 4px;
+}
+
+.due-popup-title,
+.due-popup-phone {
+  min-width: 0;
+  padding: 0 10px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 15px;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.due-popup-title {
+  text-align: left;
+}
+
+.due-popup-phone {
+  border-left: 1px solid rgba(255, 255, 255, .72);
+}
+
+.due-popup-summary {
+  display: grid;
+  gap: 5px;
+  padding: 0 8px 8px;
+  background: var(--header-blue);
+}
+
+.due-summary-strip {
+  min-height: 28px;
+  background: transparent;
+  border-color: rgba(255, 255, 255, .36);
+}
+
+.due-summary-strip span,
+.due-summary-strip b {
+  color: #fff;
+}
+
+.due-summary-strip.light {
+  background: var(--card);
+  border-color: var(--ink);
+}
+
+.due-summary-strip.light span,
+.due-summary-strip.light b {
+  color: var(--ink);
+}
+
+.due-popup-body {
+  max-height: 390px;
+  padding-bottom: 28px;
+}
+
+.settlement-release-overlay {
+  z-index: 94;
+  place-items: start center;
+  padding: calc(96px + env(safe-area-inset-top, 0px)) 18px calc(var(--nav-height) + var(--safe-bottom) + 24px);
+  background: rgba(15, 23, 42, .12);
+}
+
+.settlement-release-card,
+.message-dialog {
+  width: min(100%, 420px);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .24);
+}
+
+.release-head {
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--header-blue);
+  color: #fff;
+}
+
+.release-head b,
+.release-head span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.release-head b {
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 900;
+}
+
+.release-head span {
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 700;
+}
+
+.release-body {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: var(--bg);
+}
+
+.release-save {
+  margin: 0 auto;
+}
+
+.message-dialog-overlay {
+  z-index: 96;
+  place-items: center;
+}
+
+.message-dialog {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+}
+
+.message-dialog h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 20px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.message-dialog p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 700;
+  text-align: center;
+}
+
+@supports (height: 100svh) {
+  .settlement-popup {
+    max-height: calc(100svh - var(--nav-height) - var(--safe-bottom) - 32px);
+  }
 }
 
 .message {
@@ -2974,6 +3543,9 @@ select {
   }
 
   .settlement-row,
+  .settlement-card,
+  .settlement-tabs-card,
+  .settlement-summary-grid,
   .stock-row,
   .section,
   .summary-main,

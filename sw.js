@@ -1,16 +1,16 @@
-const CACHE_NAME = "indiansteel-pwa-20260501-login-token-26";
+const CACHE_NAME = "indiansteel-pwa-20260501-settlements-apk-27";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
-  "./styles.css?v=20260501-login-token-26",
+  "./styles.css?v=20260501-settlements-apk-27",
   "./app.js",
-  "./app.js?v=20260501-login-token-26",
+  "./app.js?v=20260501-settlements-apk-27",
   "./manifest.webmanifest",
-  "./manifest.webmanifest?v=20260501-login-token-26",
+  "./manifest.webmanifest?v=20260501-settlements-apk-27",
   "./icons/icon.svg",
   "./icons/indian-steel-logo.png",
-  "./icons/indian-steel-logo.png?v=20260501-login-token-26",
+  "./icons/indian-steel-logo.png?v=20260501-settlements-apk-27",
   "./icons/whatsapp-icon.png",
   "./icons/receipt-logo.png",
   "./icons/receipt-stamp-signature.png"

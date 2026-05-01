@@ -8,7 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-login-token-26";
+  const APP_BUILD_VERSION = "20260501-settlements-apk-27";
   const DRIVE_FILE_NAME = "indiansteel_daily_sales_sync.json";
   const GOOGLE_DRIVE_CLIENT_ID = "18090278328-i9k2i3e78062hbfhpu7pkhe1s7uvuhql.apps.googleusercontent.com";
   const GOOGLE_DRIVE_FOLDER_ID = "1uqSmcaXlqAzGZ1QR0JctoORJsLNQrmy3";
@@ -83,6 +83,12 @@
     addDraft: null,
     advanceOpen: false,
     advanceDraft: null,
+    advanceOpenKey: "",
+    dueOpenKey: "",
+    advanceReleaseId: "",
+    advanceReleaseDraft: null,
+    pendingAdvanceUndo: null,
+    advanceBlockedMessage: "",
     dueInvoice: "",
     dueDraft: null,
     profileDraft: null,
@@ -126,6 +132,7 @@
     plus: '<path d="M12 5v14M5 12h14"/>',
     chart: '<path d="M4 19V5"/><path d="M8 19v-7"/><path d="M12 19V8"/><path d="M16 19v-4"/><path d="M20 19H3"/>',
     stock: '<path d="M4 7h16v13H4z"/><path d="M8 7V4h8v3"/><path d="M8 12h8"/>',
+    assignment: '<path d="M8 4h8l1 2h3v15H4V6h3l1-2z"/><path d="M8 11h8M8 15h8M8 19h5"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
     delete: '<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 14h10l1-14"/><path d="M9 7V4h6v3"/>',
     edit: '<path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4z"/><path d="m13 6 5 5"/>',
@@ -574,6 +581,50 @@
     return Math.max(0, Number(entry.amount || 0) - Number(entry.paidAmount || 0));
   }
 
+  function advanceTotal(record) {
+    return Number(record && record.cashAmount || 0) + Number(record && record.onlineAmount || 0);
+  }
+
+  function customerMobileMatch(aCustomer, aMobile, bCustomer, bMobile) {
+    return titleCaseName(aCustomer || "").trim().toLowerCase() === titleCaseName(bCustomer || "").trim().toLowerCase() &&
+      onlyDigits(aMobile || "") === onlyDigits(bMobile || "");
+  }
+
+  function matchingDuePending(customer, mobile) {
+    const cleanMobile = onlyDigits(mobile);
+    return data.entries.some(entry =>
+      entry.kind === "Sale" &&
+      saleDue(entry) > 0 &&
+      customerMobileMatch(customer, cleanMobile, entry.customer, entry.mobileNumber)
+    );
+  }
+
+  function settlementDueSummaries() {
+    return data.entries
+      .filter(entry => entry.kind === "Sale" && entry.customer && (saleDue(entry) > 0 || entry.duePaymentHistory.length))
+      .map((entry, index) => ({
+        key: `${entry.id || entry.invoiceNo || index}|due-row:${index}`,
+        name: entry.customer,
+        sales: Number(entry.amount || 0),
+        paid: Number(entry.paidAmount || 0),
+        due: saleDue(entry),
+        latestDate: entry.dateLabel || "",
+        latestTime: entry.timeLabel || "",
+        mobile: entry.mobileNumber || "",
+        entry,
+        entries: [entry],
+        entriesCount: 1
+      }));
+  }
+
+  function findDueSummary(keyOrInvoice) {
+    return settlementDueSummaries().find(summary =>
+      summary.key === keyOrInvoice ||
+      summary.entry.id === keyOrInvoice ||
+      summary.entry.invoiceNo === keyOrInvoice
+    );
+  }
+
   function dashboardSales(entry) {
     if (entry.kind === "Sale") return Number(entry.paidAmount || 0);
     if (entry.kind === "Payment" && isDuePaymentReceipt(entry)) return Number(entry.amount || entry.paidAmount || 0);
@@ -661,14 +712,16 @@
   }
 
   function hasOpenEntryDropdown() {
-    return Boolean(ui.recentOpen || ui.historyOpen);
+    return Boolean(ui.recentOpen || ui.historyOpen || ui.advanceOpenKey || ui.dueOpenKey);
   }
 
   function isEntryDropdownTapSurface(target) {
     if (!target || !target.closest) return false;
     if (target.closest("[data-entry-dropdown]")) return true;
+    if (target.closest("[data-settlement-dropdown]")) return true;
     const trigger = target.closest("[data-toggle-entry]");
-    if (!trigger) return false;
+    const settlementTrigger = target.closest("[data-toggle-advance],[data-toggle-due]");
+    if (!trigger && !settlementTrigger) return false;
     return !target.closest("button,a,input,select,textarea,label");
   }
 
@@ -676,6 +729,8 @@
     if (!hasOpenEntryDropdown()) return;
     ui.recentOpen = "";
     ui.historyOpen = "";
+    ui.advanceOpenKey = "";
+    ui.dueOpenKey = "";
     scheduleRender();
   }
 
@@ -1176,12 +1231,17 @@
     return `<div class="detail-amount-row ${bold ? "bold" : ""}"><span>${esc(label.toUpperCase())}</span><b>${esc(numberText(value))}</b></div>`;
   }
 
+  function detailTextRow(label, value, bold = false) {
+    return `<div class="detail-amount-row ${bold ? "bold" : ""}"><span>${esc(label.toUpperCase())}</span><b>${esc(value || "-")}</b></div>`;
+  }
+
   function detailPayMode(label, amount, account) {
     const active = Number(amount || 0) > 0;
     return `
       <div class="detail-pay-mode ${active ? "active" : "disabled"}">
         <span>${esc(label)}</span>
         <b>${esc(numberText(amount))}</b>
+        <small>${esc(active ? account || "Indian Steel" : "-")}</small>
       </div>`;
   }
 
@@ -1203,54 +1263,188 @@
   }
 
   function settlementsScreen() {
+    const undoVisible = ui.pendingAdvanceUndo && Date.now() - Number(ui.pendingAdvanceUndo.deletedAt || 0) < 10000;
     return `
-      <main class="page">
-        ${blueHeader("Settlements")}
-        <div class="tabs">
+      <main class="page settlements-page">
+        <header class="blue-header settlements-header">
+          <span></span>
+          <h1>Settlements</h1>
+          ${undoVisible ? `<button class="settlement-header-action" data-action="undo-advance-delete" aria-label="Undo advance delete">${svg("undo")}</button>` : "<span></span>"}
+        </header>
+        <div class="settlement-tabs-card">
           <button class="tab ${ui.settlementTab === "advance" ? "active" : ""}" data-settlement-tab="advance">Advance Payment</button>
           <button class="tab ${ui.settlementTab === "due" ? "active" : ""}" data-settlement-tab="due">Due Payment</button>
         </div>
-        <section class="content">${ui.settlementTab === "advance" ? advanceTab() : dueTab()}</section>
+        <section class="settlement-content">${ui.settlementTab === "advance" ? advanceTab() : dueTab()}</section>
       </main>`;
   }
 
   function advanceTab() {
-    const total = data.advanceRecords.reduce((sum, record) => sum + Number(record.cashAmount || 0) + Number(record.onlineAmount || 0), 0);
+    const total = data.advanceRecords.reduce((sum, record) => sum + advanceTotal(record), 0);
     const showTotal = effectiveVisibility().advanceTotalVisible !== false;
     const showAdd = canWriteData();
     const columns = showAdd && showTotal ? "minmax(0,1fr) 58px minmax(0,1fr)" : showAdd ? "minmax(0,1fr) 58px" : showTotal ? "minmax(0,1fr) minmax(0,1fr)" : "minmax(0,1fr)";
     return `
-      <div class="grid-3" style="grid-template-columns:${columns};align-items:center">
-        <div class="card total-card"><small>Advance Entries</small><b>${data.advanceRecords.length}</b></div>
+      <div class="settlement-summary-grid" style="grid-template-columns:${columns};">
+        ${compactTotalCard("Advance Entries", data.advanceRecords.length)}
         ${showAdd ? `<button class="round-add" data-action="open-advance">${svg("plus")}</button>` : ""}
-        ${showTotal ? `<div class="card total-card"><small>Advance Total</small><b class="orange">${esc(money(total))}</b></div>` : ""}
+        ${showTotal ? compactTotalCard("Advance Total", money(total), "orange") : ""}
       </div>
-      ${data.advanceRecords.length ? data.advanceRecords.map(record => `
-        <article class="card settlement-row">
-          <span class="tile blue">${svg("card")}</span>
-          <span class="row-main"><b>${esc(record.customer)}</b><span>${esc(record.dateTime)}</span></span>
-          <span class="row-right"><span class="money orange">${esc(money(Number(record.cashAmount || 0) + Number(record.onlineAmount || 0)))}</span><br>${esc(record.method)}</span>
-          ${currentUserAccess().canDeleteAdvanceEntries ? `<button class="mini-action danger" data-delete-advance="${esc(record.id)}">${svg("delete")}</button>` : "<span></span>"}
-        </article>`).join("") : '<section class="card section empty">No advance payments available yet.</section>'}`;
+      <div class="settlement-list">
+        ${data.advanceRecords.length ? data.advanceRecords.map(advanceSettlementCard).join("") : '<section class="card section empty">No advance payments available yet.</section>'}
+      </div>`;
   }
 
   function dueTab() {
-    const dueEntries = data.entries.filter(entry => entry.kind === "Sale" && (saleDue(entry) > 0 || entry.duePaymentHistory.length));
-    const dueOpen = dueEntries.filter(entry => saleDue(entry) > 0);
-    const total = dueOpen.reduce((sum, entry) => sum + saleDue(entry), 0);
+    const dueSummaries = settlementDueSummaries();
+    const dueOpen = dueSummaries.filter(summary => summary.due > 0);
+    const total = dueOpen.reduce((sum, summary) => sum + summary.due, 0);
     const showTotal = effectiveVisibility().dueAmountTotalVisible !== false;
     return `
-      <div class="${showTotal ? "grid-2" : "grid-3"}" style="margin:10px 16px;${showTotal ? "" : "grid-template-columns:minmax(0,1fr)"}">
-        <div class="card total-card"><small>Due Customers</small><b>${dueOpen.length}</b></div>
-        ${showTotal ? `<div class="card total-card"><small>Due Amount</small><b class="red">${esc(money(total))}</b></div>` : ""}
+      <div class="settlement-summary-grid due-summary" style="grid-template-columns:${showTotal ? "minmax(0,1fr) minmax(0,1fr)" : "minmax(0,1fr)"};">
+        ${compactTotalCard("Due Customers", dueOpen.length)}
+        ${showTotal ? compactTotalCard("Due Amount", money(total), "red") : ""}
       </div>
-      ${dueEntries.length ? dueEntries.map(entry => `
-        <article class="card settlement-row">
-          <span class="tile red">${svg("card")}</span>
-          <span class="row-main"><b>${esc(entry.customer)}</b><span>${esc(entry.dateLabel)}, ${esc(entry.timeLabel)}</span></span>
-          <span class="row-right"><span class="money red">${esc(money(saleDue(entry)))}</span></span>
-          ${saleDue(entry) > 0 && canWriteData() ? `<button class="mini-action" data-open-due="${esc(entry.invoiceNo)}">${svg("edit")}</button>` : '<span></span>'}
-        </article>`).join("") : '<section class="card section empty">No due payments pending right now.</section>'}`;
+      <div class="settlement-list">
+        ${dueSummaries.length ? dueSummaries.map(dueSettlementCard).join("") : '<section class="card section empty">No due payments pending right now.</section>'}
+      </div>`;
+  }
+
+  function compactTotalCard(label, value, tone = "") {
+    return `<div class="card total-card compact-total-card"><small>${esc(label)}</small><b class="${esc(tone)}">${esc(value)}</b></div>`;
+  }
+
+  function advanceSettlementCard(record) {
+    const total = advanceTotal(record);
+    const key = record.id;
+    const open = ui.advanceOpenKey === key;
+    const canDelete = currentUserAccess().canDeleteAdvanceEntries;
+    return `
+      <article class="card settlement-card ${open ? "is-open" : ""}">
+        <div class="settlement-card-main" data-toggle-advance="${esc(key)}">
+          <span class="tile blue">${svg("chart")}</span>
+          <span class="row-main">
+            <b>${esc(record.customer || "-")}</b>
+            <span>${esc(record.dateTime || "-")}</span>
+          </span>
+          <span class="row-right"><span class="money orange">${esc(money(total))}</span><br>${esc(record.method || paymentModeLabel(record.cashAmount, record.onlineAmount))}</span>
+          <span class="settlement-card-actions">
+            ${total > 0 ? `<button class="mini-action whatsapp-action" data-share-advance="${esc(key)}" aria-label="Share advance receipt">${whatsappIcon()}</button>` : ""}
+            ${canWriteData() && total > 0 ? `<button class="mini-action" data-open-release-advance="${esc(key)}" aria-label="Release advance">${svg("edit")}</button>` : ""}
+            ${canDelete ? `<button class="mini-action danger" data-delete-advance="${esc(key)}" aria-label="Delete advance">${svg("delete")}</button>` : ""}
+          </span>
+        </div>
+        ${open ? advanceSettlementDetail(record) : ""}
+      </article>`;
+  }
+
+  function advanceSettlementDetail(record) {
+    const total = advanceTotal(record);
+    const items = record.itemNames && record.itemNames.length ? record.itemNames : ["No items selected"];
+    return `
+      <div class="detail-box settlement-detail" data-settlement-dropdown>
+        <div class="detail-top">
+          <div class="detail-info">
+            ${detailInline("Mobile Number", record.mobile || "-")}
+            ${detailInline("Date & Time", record.dateTime || "-")}
+          </div>
+        </div>
+        <div class="detail-divider"></div>
+        <h3 class="detail-heading">Item List:</h3>
+        <div class="detail-item-list">
+          ${items.map((item, index) => advanceItemBlock(record, item, index)).join("")}
+        </div>
+        <h3 class="detail-heading payment-heading">Payment Details:</h3>
+        <section class="detail-payment-box">
+          <div class="detail-payment-modes">
+            ${detailPayMode("Cash", record.cashAmount, record.cashAccount)}
+            ${detailPayMode("Online", record.onlineAmount, record.onlineAccount)}
+          </div>
+          ${detailAmountRow("Total Amount", total, true)}
+          ${record.usageHistory && record.usageHistory.length ? advanceConsumedHistory(record) : ""}
+        </section>
+      </div>`;
+  }
+
+  function advanceItemBlock(record, item, index) {
+    const rate = record.itemRates && record.itemRates[item] ? record.itemRates[item] : "";
+    return `
+      <article class="detail-item-card">
+        <div class="detail-item-name">${index + 1}. ${esc(String(item || "-").toUpperCase())}</div>
+        ${rate ? detailSmallPill("Rate", rate, "amount") : ""}
+      </article>`;
+  }
+
+  function advanceConsumedHistory(record) {
+    return `
+      <div class="detail-history-card">
+        <h3 class="detail-heading">History:</h3>
+        ${(record.usageHistory || []).map((item, index) => `
+          <div class="detail-history-row">
+            <span>${index + 1}.</span>
+            <div>
+              ${detailAmountRow(item.saleNumber || "Amount Used", item.amountUsed, true)}
+              ${item.dateTime ? detailTextRow("Date", item.dateTime) : ""}
+            </div>
+          </div>`).join("")}
+      </div>`;
+  }
+
+  function dueSettlementCard(summary) {
+    const open = ui.dueOpenKey === summary.key;
+    const canDelete = currentUserAccess().canDeleteDueEntries;
+    const dateCaption = [summary.latestDate, summary.latestTime].filter(Boolean).join(", ") || "-";
+    return `
+      <article class="card settlement-card due-settlement-card ${open ? "is-open" : ""}">
+        <div class="settlement-card-main" data-toggle-due="${esc(summary.key)}">
+          <span class="tile blue">${svg("assignment")}</span>
+          <span class="row-main">
+            <b>${esc(summary.name || "-")}</b>
+            <span>${esc(dateCaption)}</span>
+          </span>
+          <span class="row-right"><span class="money red">${esc(numberText(summary.due))}</span></span>
+          <span class="settlement-card-actions">
+            ${summary.due > 0 ? `<button class="mini-action whatsapp-action" data-share-due="${esc(summary.key)}" aria-label="Share due receipt">${whatsappIcon()}</button>` : ""}
+            ${summary.due > 0 && canWriteData() ? `<button class="mini-action" data-open-due="${esc(summary.key)}" aria-label="Edit due payment">${svg("edit")}</button>` : ""}
+            ${canDelete ? `<button class="mini-action danger" data-delete-due="${esc(summary.key)}" aria-label="Delete due entry">${svg("delete")}</button>` : ""}
+          </span>
+        </div>
+        ${open ? dueSettlementDetail(summary) : ""}
+      </article>`;
+  }
+
+  function dueSettlementDetail(summary) {
+    const entry = summary.entry;
+    const saleItems = entry.saleItems.length ? entry.saleItems : [{ product: entry.itemName || "Sale Item", quantity: "", rate: "", amount: purchaseDisplayAmount(entry) }];
+    const cashPaid = originalSaleCashPaidAmount(entry);
+    const onlineRaw = originalSaleOnlinePaidAmount(entry);
+    const basePaid = originalSalePaidAmount(entry);
+    const displayOnline = cashPaid === 0 && onlineRaw === 0 && basePaid > 0 ? basePaid : onlineRaw;
+    const adjustments = entryDetailSummary(entry).adjustments;
+    return `
+      <div class="detail-box settlement-detail" data-settlement-dropdown>
+        <div class="detail-top">
+          <div class="detail-info">
+            ${detailInline("Sale Number", entry.invoiceNo || "-")}
+            ${detailInline("Mobile Number", summary.mobile || "-")}
+          </div>
+        </div>
+        <div class="detail-divider"></div>
+        <h3 class="detail-heading">Item Purchased:</h3>
+        <div class="detail-item-list">${saleItems.map((item, index) => detailItemBlock(item, index)).join("")}</div>
+        <h3 class="detail-heading payment-heading">Payment Details:</h3>
+        <section class="detail-payment-box">
+          ${adjustments.map(row => detailAmountRow(row.label, row.value)).join("")}
+          <div class="detail-payment-modes">
+            ${detailPayMode("Cash", cashPaid, cashPaid > 0 ? entry.cashAccount : "-")}
+            ${detailPayMode("Online", displayOnline, displayOnline > 0 ? entry.onlineAccount : "-")}
+          </div>
+          ${detailAmountRow("Total Amount", summary.sales, true)}
+          ${detailAmountRow("Paid Amount", basePaid)}
+          ${detailAmountRow("Due Payment", summary.due)}
+          ${entry.duePaymentHistory.length ? detailHistoryCard(entryDetailSummary(entry)) : ""}
+        </section>
+      </div>`;
   }
 
   function reportsScreen() {
@@ -1508,6 +1702,8 @@
       ui.addOpen ? addEntrySheet() : "",
       ui.advanceOpen ? advanceSheet() : "",
       ui.dueInvoice ? duePaymentSheet() : "",
+      ui.advanceReleaseId ? advanceReleaseDialog() : "",
+      ui.advanceBlockedMessage ? advanceBlockedDialog() : "",
       ui.historyDatePicker ? historyCalendarDialog() : ""
     ].join("");
   }
@@ -1628,82 +1824,153 @@
 
   function advanceSheet() {
     const draft = ui.advanceDraft;
+    if (!draft) return "";
+    const total = amountValue(draft.total);
     return `
-      <div class="overlay" data-overlay-close="advance">
-        <section class="sheet" data-sheet>
-          <div class="sheet-head">
-            <button class="icon-button" data-action="close-advance">${svg("close")}</button>
-            <b>Advance Payment Entry</b>
-            <span></span>
+      <div class="overlay settlement-popup-overlay" data-overlay-close="advance">
+        <section class="settlement-popup advance-entry-popup" data-sheet>
+          <div class="settlement-popup-head">
+            <b>ADVANCE PAYMENT ENTRY</b>
+            <button class="settlement-popup-close" data-action="close-advance" aria-label="Close">X</button>
           </div>
-          <div></div>
-          <div class="sheet-body">
-            <div class="form-grid">
-              <label class="label">Customer Name</label>
-              <input class="field" data-advance="customer" value="${esc(draft.customer)}">
-              <label class="label">Mobile Number</label>
-              <input class="field" data-advance="mobile" inputmode="numeric" maxlength="10" value="${esc(draft.mobile)}">
-              <label class="label">Item List</label>
-              <input class="field" data-advance="items" value="${esc(draft.items)}" placeholder="Items separated by comma">
-              <section class="card payment-card">
-                <div class="pay-modes">
-                  ${advancePayMode("Cash", "cash", draft.cash)}
-                  ${advancePayMode("Online", "online", draft.online)}
-                </div>
-                <div style="height:8px"></div>
-                <div class="strip"><span>Total Amount</span><span>${esc(money(amountValue(draft.cash) + amountValue(draft.online)))}</span></div>
-              </section>
-            </div>
-          </div>
-          <div class="sheet-actions">
+          <div class="settlement-popup-body">
+            <label class="entry-sketch-label">Customer Name</label>
+            <input class="field entry-sketch-field" data-advance-field="customer" value="${esc(draft.customer)}" autocomplete="name">
+            <label class="entry-sketch-label">Mobile Number</label>
+            <input class="field entry-sketch-field" data-advance-field="mobile" inputmode="numeric" maxlength="10" value="${esc(draft.mobile)}">
+            <h3 class="settlement-popup-section-title">Item List</h3>
+            <section class="settlement-item-list">
+              ${data.itemCatalog.map(item => advanceCatalogItem(item, draft)).join("")}
+            </section>
+            <h3 class="settlement-popup-section-title">Payment Details</h3>
+            ${settlementPaymentEditor("advance", draft, total)}
             ${ui.error ? `<div class="message error">${esc(ui.error)}</div>` : ""}
-            <button class="save-button" data-action="save-advance">SAVE</button>
+          </div>
+          <div class="settlement-popup-actions">
+            <button class="settlement-save-button" data-action="save-advance">SAVE</button>
           </div>
         </section>
       </div>`;
   }
 
-  function advancePayMode(label, key, value) {
-    return `<label class="pay-mode ${amountValue(value) > 0 ? "active" : ""}"><span>${label}</span><input class="field" data-advance="${key}" inputmode="decimal" value="${esc(value)}" placeholder="0"></label>`;
+  function advanceCatalogItem(item, draft) {
+    const selected = (draft.selectedItems || []).includes(item);
+    const rate = draft.itemRates && draft.itemRates[item] || "";
+    return `
+      <div class="settlement-item-option ${selected ? "selected" : ""}">
+        <label>
+          <input type="checkbox" data-advance-item="${esc(item)}" ${selected ? "checked" : ""}>
+          <span>${esc(item)}</span>
+        </label>
+        <input class="field" data-advance-rate="${esc(item)}" inputmode="decimal" placeholder="Rate" value="${esc(rate)}" ${selected ? "" : "disabled"}>
+      </div>`;
   }
 
   function duePaymentSheet() {
-    const sale = data.entries.find(entry => entry.invoiceNo === ui.dueInvoice);
-    if (!sale) return "";
+    const summary = findDueSummary(ui.dueInvoice);
+    if (!summary) return "";
+    const sale = summary.entry;
     const draft = ui.dueDraft;
-    const due = saleDue(sale);
+    if (!draft) return "";
+    const due = summary.due;
+    const payment = Math.min(due, amountValue(draft.total));
+    const updatedPaid = Math.min(sale.amount, Number(sale.paidAmount || 0) + payment);
     return `
-      <div class="overlay" data-overlay-close="due">
-        <section class="sheet" data-sheet>
-          <div class="sheet-head">
-            <button class="icon-button" data-action="close-due">${svg("close")}</button>
-            <b>Due Payment</b>
-            <span></span>
+      <div class="overlay settlement-popup-overlay due-popup-overlay" data-overlay-close="due">
+        <section class="settlement-popup due-edit-popup" data-sheet>
+          <div class="due-popup-head">
+            <div class="due-popup-title">${esc(summary.name.toUpperCase())}</div>
+            <div class="due-popup-phone">${esc(summary.mobile || "-")}</div>
+            <button class="settlement-popup-close dark" data-action="close-due" aria-label="Close">X</button>
           </div>
-          <div></div>
-          <div class="sheet-body">
-            <div class="form-grid">
-              <div class="strip"><span>Due Amount</span><span>${esc(money(due))}</span></div>
-              <section class="card payment-card">
-                <div class="pay-modes">
-                  ${duePayMode("Cash", "cash", draft.cash)}
-                  ${duePayMode("Online", "online", draft.online)}
-                </div>
-                <div style="height:8px"></div>
-                <div class="strip"><span>Paid Amount</span><span>${esc(money(amountValue(draft.cash) + amountValue(draft.online)))}</span></div>
-              </section>
-            </div>
+          <div class="due-popup-summary">
+            ${dueSummaryStrip("Due Payment", numberText(due), true)}
+            ${dueSummaryStrip("Total Amount", numberText(summary.sales))}
+            ${dueSummaryStrip("Paid Amount", numberText(updatedPaid))}
           </div>
-          <div class="sheet-actions">
+          <div class="settlement-popup-body due-popup-body">
+            ${settlementPaymentEditor("due", draft, amountValue(draft.total), due)}
             ${ui.error ? `<div class="message error">${esc(ui.error)}</div>` : ""}
-            <button class="save-button" data-action="save-due">SAVE</button>
+            <h3 class="detail-heading payment-heading">Item Purchased:</h3>
+            <div class="detail-item-list">${(sale.saleItems.length ? sale.saleItems : [{ product: sale.itemName || "Sale Item", quantity: "", rate: "", amount: purchaseDisplayAmount(sale) }]).map((item, index) => detailItemBlock(item, index)).join("")}</div>
+            ${sale.duePaymentHistory.length ? `<h3 class="detail-heading payment-heading">History:</h3>${detailHistoryCard(entryDetailSummary(sale))}` : ""}
+          </div>
+          <div class="settlement-popup-actions">
+            <button class="settlement-save-button due-save" data-action="save-due">SAVE</button>
           </div>
         </section>
       </div>`;
   }
 
-  function duePayMode(label, key, value) {
-    return `<label class="pay-mode ${amountValue(value) > 0 ? "active" : ""}"><span>${label}</span><input class="field" data-due="${key}" inputmode="decimal" value="${esc(value)}" placeholder="0"></label>`;
+  function settlementPaymentEditor(prefix, draft, totalValue, maxTotal = Infinity) {
+    const total = Number.isFinite(maxTotal) ? Math.min(maxTotal, totalValue) : totalValue;
+    return `
+      <section class="settlement-payment-editor">
+        <div class="settlement-pay-modes">
+          ${settlementPayMode(prefix, "Cash", "cash", draft.cash, draft.cashAccount)}
+          ${settlementPayMode(prefix, "Online", "online", draft.online, draft.onlineAccount)}
+        </div>
+        <div class="editable-total-strip">
+          <span>Total Amount</span>
+          <input class="field" data-${prefix}-field="total" inputmode="decimal" value="${esc(draft.total)}" placeholder="0">
+        </div>
+        ${Number.isFinite(maxTotal) ? `<div class="settlement-max-note">Maximum due payment ${esc(numberText(maxTotal))}</div>` : ""}
+      </section>`;
+  }
+
+  function settlementPayMode(prefix, label, key, value, account) {
+    const active = amountValue(value) > 0;
+    const accountKey = `${key}Account`;
+    return `
+      <div class="pay-mode settlement-pay-mode ${active ? "active" : "disabled"}">
+        <span>${esc(label)}</span>
+        <input class="field" data-${prefix}-field="${esc(key)}" inputmode="decimal" value="${esc(value)}" placeholder="0">
+        <select class="account-select" data-${prefix}-account="${esc(accountKey)}" ${active ? "" : "disabled"}>
+          ${data.accountOptions.map(option => `<option value="${esc(option)}" ${option === account ? "selected" : ""}>${esc(option)}</option>`).join("")}
+        </select>
+      </div>`;
+  }
+
+  function dueSummaryStrip(label, value, light = false) {
+    return `<div class="due-summary-strip ${light ? "light" : ""}"><span>${esc(label.toUpperCase())}</span><b>${esc(value)}</b></div>`;
+  }
+
+  function advanceReleaseDialog() {
+    const record = data.advanceRecords.find(item => item.id === ui.advanceReleaseId);
+    if (!record) return "";
+    const total = advanceTotal(record);
+    const draft = ui.advanceReleaseDraft || { amount: "" };
+    return `
+      <div class="overlay settlement-release-overlay" data-overlay-close="advance-release">
+        <section class="settlement-release-card" data-sheet>
+          <div class="release-head">
+            <div>
+              <b>${esc(record.customer || "-")}</b>
+              <span>${esc(record.mobile || "-")}</span>
+            </div>
+            <button class="settlement-popup-close dark" data-action="close-advance-release" aria-label="Close">X</button>
+          </div>
+          <div class="release-body">
+            ${dueSummaryStrip("Remaining Advance", numberText(total), true)}
+            <label class="entry-sketch-label">Release Amount</label>
+            <input class="field entry-sketch-field centered" data-release-amount inputmode="decimal" value="${esc(draft.amount || "")}" placeholder="0">
+            ${ui.error ? `<div class="message error">${esc(ui.error)}</div>` : ""}
+            <button class="settlement-save-button release-save" data-action="save-advance-release">PROCEED</button>
+          </div>
+        </section>
+      </div>`;
+  }
+
+  function advanceBlockedDialog() {
+    if (!ui.advanceBlockedMessage) return "";
+    return `
+      <div class="overlay message-dialog-overlay" data-overlay-close="advance-blocked">
+        <section class="message-dialog" data-sheet>
+          <h2>Due Payment Pending</h2>
+          <p>${esc(ui.advanceBlockedMessage)}</p>
+          <button class="settlement-save-button" data-action="close-advance-blocked">OK</button>
+        </section>
+      </div>`;
   }
 
   function profileLogoSrc(value) {
@@ -2681,6 +2948,9 @@
     }));
     document.querySelectorAll("[data-settlement-tab]").forEach(el => el.addEventListener("click", () => {
       ui.settlementTab = el.dataset.settlementTab;
+      ui.advanceOpenKey = "";
+      ui.dueOpenKey = "";
+      ui.error = "";
       scheduleRender();
     }));
     document.querySelectorAll("[data-report-range]").forEach(el => el.addEventListener("click", () => {
@@ -2693,6 +2963,18 @@
     document.querySelectorAll("[data-toggle-entry]").forEach(el => el.addEventListener("click", event => {
       if (event.target.closest("button,a,input,select,textarea,label")) return;
       toggleEntryDropdown(el.dataset.toggleEntry, el.dataset.source);
+      scheduleRender();
+    }));
+    document.querySelectorAll("[data-toggle-advance]").forEach(el => el.addEventListener("click", event => {
+      if (event.target.closest("button,a,input,select,textarea,label")) return;
+      ui.advanceOpenKey = ui.advanceOpenKey === el.dataset.toggleAdvance ? "" : el.dataset.toggleAdvance;
+      ui.dueOpenKey = "";
+      scheduleRender();
+    }));
+    document.querySelectorAll("[data-toggle-due]").forEach(el => el.addEventListener("click", event => {
+      if (event.target.closest("button,a,input,select,textarea,label")) return;
+      ui.dueOpenKey = ui.dueOpenKey === el.dataset.toggleDue ? "" : el.dataset.toggleDue;
+      ui.advanceOpenKey = "";
       scheduleRender();
     }));
     document.querySelectorAll("[data-overlay-close]").forEach(el => el.addEventListener("click", event => {
@@ -2712,12 +2994,31 @@
       if (el.value !== ui.advanceDraft[key]) el.value = ui.advanceDraft[key];
       scheduleRender();
     }));
+    document.querySelectorAll("[data-advance-field]").forEach(el => el.addEventListener("input", () => updateAdvanceDraftField(el)));
+    document.querySelectorAll("[data-advance-item]").forEach(el => el.addEventListener("change", () => toggleAdvanceItem(el)));
+    document.querySelectorAll("[data-advance-rate]").forEach(el => el.addEventListener("input", () => updateAdvanceRate(el)));
+    document.querySelectorAll("[data-advance-account]").forEach(el => el.addEventListener("change", () => {
+      if (!ui.advanceDraft) return;
+      ui.advanceDraft[el.dataset.advanceAccount] = el.value;
+    }));
     document.querySelectorAll("[data-due]").forEach(el => el.addEventListener("input", () => {
       const key = el.dataset.due;
       ui.dueDraft[key] = cleanAmount(el.value);
       balanceDueDraft(key);
       scheduleRender();
     }));
+    document.querySelectorAll("[data-due-field]").forEach(el => el.addEventListener("input", () => updateDueDraftField(el)));
+    document.querySelectorAll("[data-due-account]").forEach(el => el.addEventListener("change", () => {
+      if (!ui.dueDraft) return;
+      ui.dueDraft[el.dataset.dueAccount] = el.value;
+    }));
+    const releaseAmount = document.querySelector("[data-release-amount]");
+    if (releaseAmount) releaseAmount.addEventListener("input", () => {
+      if (!ui.advanceReleaseDraft) ui.advanceReleaseDraft = { amount: "" };
+      ui.advanceReleaseDraft.amount = cleanAmount(releaseAmount.value);
+      if (releaseAmount.value !== ui.advanceReleaseDraft.amount) releaseAmount.value = ui.advanceReleaseDraft.amount;
+      ui.error = "";
+    });
     document.querySelectorAll("[data-config]").forEach(el => el.addEventListener("input", () => {
       driveConfig = normalizeDriveConfig({
         ...driveConfig,
@@ -2731,6 +3032,10 @@
     document.querySelectorAll("[data-delete-entry]").forEach(el => el.addEventListener("click", () => deleteEntry(el.dataset.deleteEntry)));
     document.querySelectorAll("[data-delete-advance]").forEach(el => el.addEventListener("click", () => deleteAdvance(el.dataset.deleteAdvance)));
     document.querySelectorAll("[data-open-due]").forEach(el => el.addEventListener("click", () => openDueSheet(el.dataset.openDue)));
+    document.querySelectorAll("[data-open-release-advance]").forEach(el => el.addEventListener("click", () => openAdvanceRelease(el.dataset.openReleaseAdvance)));
+    document.querySelectorAll("[data-delete-due]").forEach(el => el.addEventListener("click", () => deleteDueEntry(el.dataset.deleteDue)));
+    document.querySelectorAll("[data-share-advance]").forEach(el => el.addEventListener("click", () => void shareAdvancePayment(el.dataset.shareAdvance)));
+    document.querySelectorAll("[data-share-due]").forEach(el => el.addEventListener("click", () => void shareDuePaymentSummary(el.dataset.shareDue)));
     document.querySelectorAll("[data-delete-stock]").forEach(el => el.addEventListener("click", () => deleteStock(el.dataset.deleteStock)));
     document.querySelectorAll("[data-share-entry]").forEach(el => el.addEventListener("click", () => shareEntry(el.dataset.shareEntry)));
     const historySearch = document.querySelector("[data-history-search]");
@@ -2841,13 +3146,18 @@
     if (action === "toggle-discount") ui.addDraft.discountOpen = true;
     if (action === "open-advance") {
       ui.advanceOpen = true;
-      ui.advanceDraft = { customer: "", mobile: "", items: "", cash: "0", online: "0" };
+      ui.advanceDraft = newAdvanceDraft();
+      ui.advanceOpenKey = "";
       ui.error = "";
     }
     if (action === "close-advance") closeOverlay("advance");
     if (action === "save-advance") saveAdvance();
     if (action === "close-due") closeOverlay("due");
     if (action === "save-due") saveDuePayment();
+    if (action === "close-advance-release") closeOverlay("advance-release");
+    if (action === "save-advance-release") saveAdvanceRelease();
+    if (action === "undo-advance-delete") restoreAdvanceUndo();
+    if (action === "close-advance-blocked") closeOverlay("advance-blocked");
     if (action === "close-history-calendar") closeOverlay("history-calendar");
     if (action === "history-calendar-prev") shiftHistoryCalendar(-1);
     if (action === "history-calendar-next") shiftHistoryCalendar(1);
@@ -2879,6 +3189,11 @@
     if (name === "add") ui.addOpen = false;
     if (name === "advance") ui.advanceOpen = false;
     if (name === "due") ui.dueInvoice = "";
+    if (name === "advance-release") {
+      ui.advanceReleaseId = "";
+      ui.advanceReleaseDraft = null;
+    }
+    if (name === "advance-blocked") ui.advanceBlockedMessage = "";
     if (name === "profile") ui.screen = "profile";
     if (name === "history-calendar") {
       ui.historyDatePicker = "";
@@ -2984,18 +3299,120 @@
     persist();
   }
 
-  function balanceDueDraft(lastEdited) {
-    const sale = data.entries.find(entry => entry.invoiceNo === ui.dueInvoice);
-    if (!sale) return;
-    const due = saleDue(sale);
+  function newAdvanceDraft() {
+    return {
+      customer: "",
+      mobile: "",
+      selectedItems: [],
+      itemRates: {},
+      total: "0",
+      cash: "0",
+      online: "0",
+      lastEdited: "cash",
+      cashAccount: data.accountOptions[0] || "Indian Steel",
+      onlineAccount: data.accountOptions[0] || "Indian Steel"
+    };
+  }
+
+  function newDueDraft() {
+    return {
+      total: "",
+      cash: "0",
+      online: "0",
+      lastEdited: "cash",
+      cashAccount: data.accountOptions[0] || "Indian Steel",
+      onlineAccount: data.accountOptions[0] || "Indian Steel"
+    };
+  }
+
+  function updateAdvanceDraftField(el) {
+    if (!ui.advanceDraft) return;
+    const key = el.dataset.advanceField;
+    let value = el.value;
+    if (key === "customer") value = titleCaseName(value);
+    if (key === "mobile") value = onlyDigits(value);
+    if (key === "cash" || key === "online" || key === "total") value = cleanAmount(value);
+    ui.advanceDraft[key] = value;
+    if (key === "cash" || key === "online") ui.advanceDraft.lastEdited = key;
+    if (el.value !== value) el.value = value;
+    if (key === "cash" || key === "online" || key === "total") balanceAdvanceDraft(key);
+    ui.error = "";
+    scheduleRender();
+  }
+
+  function toggleAdvanceItem(el) {
+    if (!ui.advanceDraft) return;
+    const item = el.dataset.advanceItem || "";
+    const selected = new Set(ui.advanceDraft.selectedItems || []);
+    if (el.checked) selected.add(item);
+    else {
+      selected.delete(item);
+      delete ui.advanceDraft.itemRates[item];
+    }
+    ui.advanceDraft.selectedItems = Array.from(selected);
+    scheduleRender();
+  }
+
+  function updateAdvanceRate(el) {
+    if (!ui.advanceDraft) return;
+    const item = el.dataset.advanceRate || "";
+    const value = cleanAmount(el.value);
+    if (value) ui.advanceDraft.itemRates[item] = value;
+    else delete ui.advanceDraft.itemRates[item];
+    if (el.value !== value) el.value = value;
+  }
+
+  function updateDueDraftField(el) {
+    if (!ui.dueDraft) return;
+    const key = el.dataset.dueField;
+    let value = cleanAmount(el.value);
+    ui.dueDraft[key] = value;
+    if (key === "cash" || key === "online") ui.dueDraft.lastEdited = key;
+    if (el.value !== value) el.value = value;
+    balanceDueDraft(key);
+    ui.error = "";
+    scheduleRender();
+  }
+
+  function amountInputText(value) {
+    const number = Math.round(Number(value || 0) * 100) / 100;
+    return Number.isInteger(number) ? String(number) : String(number);
+  }
+
+  function balanceAdvanceDraft(lastEdited) {
+    const draft = ui.advanceDraft;
+    if (!draft) return;
+    let total = Math.max(0, amountValue(draft.total));
     if (lastEdited === "cash") {
-      const cash = Math.min(amountValue(ui.dueDraft.cash), due);
-      ui.dueDraft.cash = String(cash);
-      ui.dueDraft.online = String(Math.max(0, due - cash));
+      const cash = Math.min(amountValue(draft.cash), total);
+      draft.cash = amountInputText(cash);
+      draft.online = amountInputText(Math.max(0, total - cash));
+    } else if (lastEdited === "online") {
+      const online = Math.min(amountValue(draft.online), total);
+      draft.online = amountInputText(online);
+      draft.cash = amountInputText(Math.max(0, total - online));
     } else {
-      const online = Math.min(amountValue(ui.dueDraft.online), due);
-      ui.dueDraft.online = String(online);
-      ui.dueDraft.cash = String(Math.max(0, due - online));
+      balanceAdvanceDraft(draft.lastEdited || "cash");
+    }
+  }
+
+  function balanceDueDraft(lastEdited) {
+    const summary = findDueSummary(ui.dueInvoice);
+    if (!summary || !ui.dueDraft) return;
+    const draft = ui.dueDraft;
+    const due = summary.due;
+    const total = Math.min(due, amountValue(draft.total));
+    if (amountValue(draft.total) > due) draft.total = amountInputText(due);
+    if (lastEdited === "cash") {
+      const cash = Math.min(amountValue(draft.cash), total);
+      draft.cash = amountInputText(cash);
+      draft.online = amountInputText(Math.max(0, total - cash));
+    } else if (lastEdited === "online") {
+      const online = Math.min(amountValue(draft.online), total);
+      draft.online = amountInputText(online);
+      draft.cash = amountInputText(Math.max(0, total - online));
+    } else {
+      balanceDueDraft(draft.lastEdited || "cash");
     }
   }
 
@@ -3006,55 +3423,76 @@
     draft.mobile = onlyDigits(draft.mobile);
     if (!draft.customer) return void fail("Customer name is required.");
     if (draft.mobile.length !== 10) return void fail("Mobile number must be exactly 10 digits.");
-    const total = amountValue(draft.cash) + amountValue(draft.online);
+    const total = amountValue(draft.total);
     if (total <= 0) return void fail("Advance amount must be greater than 0.");
+    if (matchingDuePending(draft.customer, draft.mobile)) {
+      ui.advanceBlockedMessage = "This customer has due payment. Hence can not accept payment as advance. Please clear due first.";
+      scheduleRender();
+      return;
+    }
     const record = normalizeAdvance({
       id: id(),
       customer: draft.customer,
       mobile: draft.mobile,
       dateTime: `${nowDate()}, ${nowTime()}`,
-      itemNames: draft.items.split(",").map(item => item.trim()).filter(Boolean),
+      itemNames: draft.selectedItems || [],
+      itemRates: draft.itemRates || {},
       method: paymentModeLabel(draft.cash, draft.online),
       cashAmount: amountValue(draft.cash),
       onlineAmount: amountValue(draft.online),
-      layout: "Split",
+      layout: amountValue(draft.cash) > 0 && amountValue(draft.online) > 0 ? "Split" : "Single",
+      cashAccount: draft.cashAccount,
+      onlineAccount: draft.onlineAccount,
       updatedAt: Date.now()
     });
-    data.advanceRecords.unshift(record);
+    const existingIndex = data.advanceRecords.findIndex(existing =>
+      advanceTotal(existing) > 0 && customerMobileMatch(existing.customer, existing.mobile, record.customer, record.mobile)
+    );
+    if (existingIndex >= 0) {
+      data.advanceRecords[existingIndex] = withAdditionalAdvance(data.advanceRecords[existingIndex], record);
+    } else {
+      data.advanceRecords.unshift(record);
+    }
     data = normalizeData(data);
     ui.advanceOpen = false;
+    ui.advanceDraft = null;
     sync.status = "Advance saved locally";
     persist();
   }
 
   function openDueSheet(invoiceNo) {
     if (!canWriteData()) return;
-    const sale = data.entries.find(entry => entry.invoiceNo === invoiceNo);
-    if (!sale) return;
-    ui.dueInvoice = invoiceNo;
-    ui.dueDraft = { cash: "0", online: String(saleDue(sale)) };
+    const summary = findDueSummary(invoiceNo);
+    if (!summary || summary.due <= 0) return;
+    ui.dueInvoice = summary.key;
+    ui.dueDraft = newDueDraft();
     ui.error = "";
     scheduleRender();
   }
 
   function saveDuePayment() {
     if (!canWriteData()) return;
-    const sale = data.entries.find(entry => entry.invoiceNo === ui.dueInvoice);
-    if (!sale) return;
-    const due = saleDue(sale);
+    const summary = findDueSummary(ui.dueInvoice);
+    if (!summary) return;
+    const sale = summary.entry;
+    const due = summary.due;
     const cash = Math.round(amountValue(ui.dueDraft.cash));
     const online = Math.round(amountValue(ui.dueDraft.online));
-    const paid = Math.min(due, cash + online);
+    const paid = Math.min(due, Math.round(amountValue(ui.dueDraft.total)) || (cash + online));
     if (paid <= 0) return void fail("Enter payment amount.");
     const historyItem = normalizeDueHistory({
       dateTime: `${nowDate()}, ${nowTime()}`,
       amount: paid,
       cashAmount: Math.min(cash, paid),
-      onlineAmount: Math.min(online, paid),
-      cashAccount: "Indian Steel",
-      onlineAccount: "Indian Steel"
+      onlineAmount: Math.min(online, Math.max(0, paid - Math.min(cash, paid))),
+      cashAccount: ui.dueDraft.cashAccount || "Indian Steel",
+      onlineAccount: ui.dueDraft.onlineAccount || "Indian Steel"
     });
     sale.paidAmount = Math.min(sale.amount, sale.paidAmount + paid);
+    sale.cashPaidAmount = Number(sale.cashPaidAmount || 0) + historyItem.cashAmount;
+    sale.onlinePaidAmount = Number(sale.onlinePaidAmount || 0) + historyItem.onlineAmount;
+    sale.cashAccount = historyItem.cashAccount;
+    sale.onlineAccount = historyItem.onlineAccount;
     sale.duePaymentHistory = uniqueBy([...sale.duePaymentHistory, historyItem], item => `${item.dateTime}|${item.amount}|${item.cashAmount}|${item.onlineAmount}`);
     data.entries.unshift(normalizeEntry({
       id: id(),
@@ -3070,6 +3508,8 @@
       mobileNumber: sale.mobileNumber,
       cashPaidAmount: historyItem.cashAmount,
       onlinePaidAmount: historyItem.onlineAmount,
+      cashAccount: historyItem.cashAccount,
+      onlineAccount: historyItem.onlineAccount,
       saleItems: sale.saleItems,
       purchasedAmount: sale.purchasedAmount,
       cuttingCharge: sale.cuttingCharge,
@@ -3082,6 +3522,8 @@
     }));
     data = normalizeData(data);
     ui.dueInvoice = "";
+    ui.dueDraft = null;
+    ui.dueOpenKey = summary.key;
     sync.status = "Due payment saved locally";
     persist();
   }
@@ -3102,8 +3544,108 @@
     const record = data.advanceRecords.find(item => item.id === recordId);
     if (!record) return;
     const deletedAt = Date.now();
+    const originalIndex = data.advanceRecords.findIndex(item => item.id === recordId);
+    ui.pendingAdvanceUndo = { record, originalIndex, deletedAt };
     advanceIdentityKeys(record).forEach(key => { data.deletedAdvanceRecordKeys[key] = deletedAt; });
     data.advanceRecords = data.advanceRecords.filter(item => item.id !== recordId);
+    ui.advanceOpenKey = "";
+    persist();
+  }
+
+  function deleteDueEntry(key) {
+    if (!currentUserAccess().canDeleteDueEntries) return;
+    const summary = findDueSummary(key);
+    if (!summary) return;
+    const sale = summary.entry;
+    const deleted = new Set(data.deletedLedgerEntryKeys || []);
+    entryIdentityKeys(sale).forEach(item => deleted.add(item));
+    data.entries
+      .filter(entry => isDuePaymentReceipt(entry) && (entry.sourceSaleNumber === sale.invoiceNo || String(entry.subtitle || "").includes(sale.invoiceNo)))
+      .forEach(entry => entryIdentityKeys(entry).forEach(item => deleted.add(item)));
+    data.deletedLedgerEntryKeys = Array.from(deleted);
+    data.entries = data.entries.filter(entry => !isEntryDeleted(entry, data.deletedLedgerEntryKeys));
+    ui.dueOpenKey = "";
+    sync.status = "Due entry deleted locally";
+    persist();
+  }
+
+  function withAdditionalAdvance(existing, incoming) {
+    const cashAmount = Number(existing.cashAmount || 0) + Number(incoming.cashAmount || 0);
+    const onlineAmount = Number(existing.onlineAmount || 0) + Number(incoming.onlineAmount || 0);
+    const itemNames = uniqStrings([...(existing.itemNames || []), ...(incoming.itemNames || [])], []);
+    return normalizeAdvance({
+      ...existing,
+      dateTime: incoming.dateTime || existing.dateTime,
+      itemNames,
+      itemRates: { ...(existing.itemRates || {}), ...(incoming.itemRates || {}) },
+      cashAmount,
+      onlineAmount,
+      method: paymentModeLabel(cashAmount, onlineAmount),
+      layout: cashAmount > 0 && onlineAmount > 0 ? "Split" : "Single",
+      cashAccount: incoming.cashAccount || existing.cashAccount,
+      onlineAccount: incoming.onlineAccount || existing.onlineAccount,
+      usageHistory: existing.usageHistory || [],
+      updatedAt: Date.now()
+    });
+  }
+
+  function openAdvanceRelease(recordId) {
+    if (!canWriteData()) return;
+    const record = data.advanceRecords.find(item => item.id === recordId);
+    if (!record || advanceTotal(record) <= 0) return;
+    ui.advanceReleaseId = recordId;
+    ui.advanceReleaseDraft = { amount: "" };
+    ui.error = "";
+    scheduleRender();
+  }
+
+  function saveAdvanceRelease() {
+    if (!canWriteData()) return;
+    const record = data.advanceRecords.find(item => item.id === ui.advanceReleaseId);
+    if (!record) return;
+    const amount = amountValue(ui.advanceReleaseDraft && ui.advanceReleaseDraft.amount);
+    const total = advanceTotal(record);
+    if (amount <= 0) return void fail("Enter release amount.");
+    if (amount > total) return void fail("Release amount cannot be greater than remaining advance.");
+    const updated = withAdvanceRelease(record, amount);
+    data.advanceRecords = data.advanceRecords.map(item => item.id === record.id ? updated : item);
+    data = normalizeData(data);
+    ui.advanceReleaseId = "";
+    ui.advanceReleaseDraft = null;
+    ui.advanceOpenKey = updated.id;
+    sync.status = "Advance released locally";
+    persist();
+  }
+
+  function withAdvanceRelease(record, amount) {
+    const released = Math.min(advanceTotal(record), Math.max(0, amount));
+    const total = advanceTotal(record);
+    const remaining = Math.max(0, total - released);
+    const cashShare = total > 0 ? Number(record.cashAmount || 0) / total : 0;
+    const cashAmount = remaining <= 0 ? 0 : Math.round(remaining * cashShare * 100) / 100;
+    const onlineAmount = remaining <= 0 ? 0 : Math.max(0, Math.round((remaining - cashAmount) * 100) / 100);
+    return normalizeAdvance({
+      ...record,
+      cashAmount,
+      onlineAmount,
+      method: paymentModeLabel(cashAmount, onlineAmount),
+      usageHistory: [
+        ...(record.usageHistory || []),
+        { saleNumber: "Amount Released", dateTime: `${nowDate()}, ${nowTime()}`, amountUsed: Math.round(released) }
+      ],
+      updatedAt: Date.now()
+    });
+  }
+
+  function restoreAdvanceUndo() {
+    const undo = ui.pendingAdvanceUndo;
+    if (!undo || !undo.record) return;
+    advanceIdentityKeys(undo.record).forEach(key => { delete data.deletedAdvanceRecordKeys[key]; });
+    const index = Math.max(0, Math.min(data.advanceRecords.length, Number(undo.originalIndex || 0)));
+    data.advanceRecords.splice(index, 0, normalizeAdvance({ ...undo.record, updatedAt: Date.now() }));
+    data = normalizeData(data);
+    ui.pendingAdvanceUndo = null;
+    sync.status = "Advance restored locally";
     persist();
   }
 
@@ -3342,6 +3884,46 @@
     }
   }
 
+  async function sharePdfWithFallback({ title, file, text }) {
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ title, files: [file] }).catch(() => {});
+      return;
+    }
+    if (navigator.share && text) {
+      await navigator.share({ title, text }).catch(() => {});
+      return;
+    }
+    openPdfBlob(file);
+  }
+
+  async function shareAdvancePayment(recordId) {
+    const record = data.advanceRecords.find(item => item.id === recordId);
+    if (!record) return;
+    const title = `Advance Payment Receipt ${record.customer || ""}`.trim();
+    const text = `${data.businessProfile.name || "Indian Steel"}\n${record.customer}\nAdvance: ${money(advanceTotal(record))}\nMobile: ${record.mobile || "-"}`;
+    try {
+      const file = await createAdvancePaymentReceiptPdfFile(record);
+      await sharePdfWithFallback({ title, file, text });
+    } catch (_) {
+      if (navigator.share) await navigator.share({ title, text }).catch(() => {});
+      else window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+    }
+  }
+
+  async function shareDuePaymentSummary(key) {
+    const summary = findDueSummary(key);
+    if (!summary) return;
+    const title = `Due Payment Receipt ${summary.name || ""}`.trim();
+    const text = `${data.businessProfile.name || "Indian Steel"}\n${summary.name}\nSale: ${summary.entry.invoiceNo}\nDue: ${money(summary.due)}\nMobile: ${summary.mobile || "-"}`;
+    try {
+      const file = await createDuePaymentReceiptPdfFile(summary);
+      await sharePdfWithFallback({ title, file, text });
+    } catch (_) {
+      if (navigator.share) await navigator.share({ title, text }).catch(() => {});
+      else window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+    }
+  }
+
   async function createSalesReceiptPdfFile(entry) {
     const blob = await createSalesReceiptPdfBlob(entry);
     const invoicePart = cleanFilePart(entry.invoiceNo).replace(/^_+|_+$/g, "") || String(Date.now());
@@ -3349,6 +3931,22 @@
   }
 
   async function createSalesReceiptPdfBlob(entry) {
+    return createReceiptPdfBlob(entry);
+  }
+
+  async function createDuePaymentReceiptPdfFile(summary) {
+    const customerPart = cleanFilePart(summary.name).replace(/^_+|_+$/g, "") || "Customer";
+    const blob = await createReceiptPdfBlob(summary.entry, {
+      receiptTitle: "DUE PAYMENT RECEIPT",
+      paymentSectionTitle: "DUE PAYMENT DETAILS:",
+      dateTimeText: [summary.latestDate, summary.latestTime].filter(Boolean).join(", ") || "-",
+      historyStartingPaidAmount: originalSalePaidAmount(summary.entry),
+      historyTotalAmount: summary.sales
+    });
+    return new File([blob], `DUE_PAYMENT_RECEIPT_${customerPart}_${Date.now()}.pdf`, { type: "application/pdf" });
+  }
+
+  async function createReceiptPdfBlob(entry, options = {}) {
     const assets = await loadReceiptAssets();
     const scale = 2;
     const canvas = document.createElement("canvas");
@@ -3356,7 +3954,7 @@
     canvas.height = RECEIPT_PAGE_HEIGHT * scale;
     const ctx = canvas.getContext("2d", { alpha: false });
     ctx.scale(scale, scale);
-    drawSalesReceiptCanvas(ctx, entry, assets);
+    drawSalesReceiptCanvas(ctx, entry, assets, options);
     const jpegBytes = dataUrlToBytes(canvas.toDataURL("image/jpeg", 0.94));
     return buildSinglePagePdf({
       imageBytes: jpegBytes,
@@ -3364,6 +3962,26 @@
       imageHeight: canvas.height,
       annotations: receiptPdfAnnotations()
     });
+  }
+
+  async function createAdvancePaymentReceiptPdfFile(record) {
+    const assets = await loadReceiptAssets();
+    const scale = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = RECEIPT_PAGE_WIDTH * scale;
+    canvas.height = RECEIPT_PAGE_HEIGHT * scale;
+    const ctx = canvas.getContext("2d", { alpha: false });
+    ctx.scale(scale, scale);
+    drawAdvancePaymentReceiptCanvas(ctx, record, assets);
+    const jpegBytes = dataUrlToBytes(canvas.toDataURL("image/jpeg", 0.94));
+    const blob = buildSinglePagePdf({
+      imageBytes: jpegBytes,
+      imageWidth: canvas.width,
+      imageHeight: canvas.height,
+      annotations: receiptPdfAnnotations()
+    });
+    const customerPart = cleanFilePart(record.customer).replace(/^_+|_+$/g, "") || "Customer";
+    return new File([blob], `ADVANCE_PAYMENT_RECEIPT_${customerPart}_${Date.now()}.pdf`, { type: "application/pdf" });
   }
 
   function openPdfBlob(blob, targetWindow = null) {
@@ -3402,12 +4020,12 @@
     });
   }
 
-  function drawSalesReceiptCanvas(ctx, entry, assets) {
+  function drawSalesReceiptCanvas(ctx, entry, assets, options = {}) {
     const black = "#111827";
     const pageWidth = RECEIPT_PAGE_WIDTH;
     const pageHeight = RECEIPT_PAGE_HEIGHT;
     const purchasedItems = saleReceiptItems(entry);
-    const defaultDateTime = [entry.dateLabel, entry.timeLabel].filter(Boolean).join(", ") || "-";
+    const defaultDateTime = options.dateTimeText || [entry.dateLabel, entry.timeLabel].filter(Boolean).join(", ") || "-";
     const receiptPaidAmount = originalSalePaidAmount(entry);
     const dueAmount = Math.max(0, Number(entry.amount || 0) - receiptPaidAmount);
     const purchasedAmount = purchaseDisplayAmount(entry);
@@ -3449,7 +4067,7 @@
     drawFit(ctx, entry.invoiceNo || "-", saleNumberLeft, 245, infoBaseline - 0.4, detailSize);
     drawRightDetailPair(ctx, "DATE & TIME :", defaultDateTime, defaultDateTime, infoBaseline, pageWidth - 18);
 
-    drawFit(ctx, "SALES RECEIPT", 190, 405, 195, 12, true, "center");
+    drawFit(ctx, options.receiptTitle || "SALES RECEIPT", 170, 425, 195, 12, true, "center");
 
     const customerBaseline = 236;
     const customerNameLabel = "CUSTOMER NAME :";
@@ -3506,12 +4124,19 @@
     const historyHeaderTop = paymentModeTop + 34;
     const historyRowTop = historyHeaderTop + 19;
     const historyRowHeight = 18;
-    const dueHistoryRows = receiptDueHistoryRows(entry, receiptPaidAmount, Number(entry.amount || 0), footerTop, historyRowTop, historyRowHeight);
+    const dueHistoryRows = receiptDueHistoryRows(
+      entry,
+      Number(options.historyStartingPaidAmount == null ? receiptPaidAmount : options.historyStartingPaidAmount),
+      Number(options.historyTotalAmount == null ? entry.amount || 0 : options.historyTotalAmount),
+      footerTop,
+      historyRowTop,
+      historyRowHeight
+    );
     const historyBottom = dueHistoryRows.length ? historyRowTop + (dueHistoryRows.length * historyRowHeight) : historyHeaderTop;
     const paymentBottom = dueHistoryRows.length ? historyBottom + 14 : paymentModeTop + 34;
 
     drawRectStroke(ctx, 18, paymentTop, pageWidth - 18, paymentBottom, 1.1);
-    drawFit(ctx, "PAYMENT DETAILS:", 28, 210, paymentTop + 22, labelPaintSize);
+    drawFit(ctx, options.paymentSectionTitle || "PAYMENT DETAILS:", 28, 210, paymentTop + 22, labelPaintSize);
     paymentSummaryRows.forEach((row, index) => {
       const top = paymentSummaryTop + (index * paymentSummaryStep);
       drawRoundBox(ctx, paymentContentLeft, top, paymentContentRight, top + 17, 8);
@@ -3572,6 +4197,87 @@
     ctx.fillStyle = "#000";
     ctx.fillRect(6, footerTop, pageWidth - 12, 20);
     drawFit(ctx, "Thank you for your business! We appreciate your trust in Indian Steel and look forward to serving you again.", 12, pageWidth - 12, 821, 8, true, "center", "#fff");
+  }
+
+  function drawAdvancePaymentReceiptCanvas(ctx, record, assets) {
+    const pageWidth = RECEIPT_PAGE_WIDTH;
+    const pageHeight = RECEIPT_PAGE_HEIGHT;
+    const labelPaintSize = 8.8;
+    const detailSize = 7.8;
+    const total = advanceTotal(record);
+    const items = record.itemNames && record.itemNames.length ? record.itemNames.slice(0, 6) : ["Advance Payment"];
+
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, pageWidth, pageHeight);
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 1.1;
+    ctx.strokeRect(6, 5, pageWidth - 12, pageHeight - 10);
+    drawImageFit(ctx, assets.logo, 248, 10, 347, 101);
+    drawPhoneIcon(ctx, 508, 24);
+    drawMailIcon(ctx, 508, 39);
+    drawFit(ctx, INDIAN_STEEL_OWNER_MOBILE, 518, 588, 27, 6.6);
+    drawFit(ctx, INDIAN_STEEL_RECEIPT_EMAIL, 518, 588, 42, 6.6);
+    drawFit(ctx, "Buyer & Seller of Scaffolding and All Types of Scrap", 90, 505, 119, 13.5, true, "center");
+    drawRectStroke(ctx, 6, 130, pageWidth - 6, 148, 0.75);
+    drawLocationIcon(ctx, 26, 139);
+    drawFit(ctx, INDIAN_STEEL_RECEIPT_ADDRESS, 38, pageWidth - 18, 142, 7.8);
+
+    drawFit(ctx, "ADVANCE PAYMENT RECEIPT", 155, 440, 195, 12, true, "center");
+    drawFit(ctx, "CUSTOMER NAME :", 18, 112, 236, labelPaintSize);
+    drawFit(ctx, record.customer || "-", 114, 285, 235.6, detailSize);
+    drawRightDetailPair(ctx, "MOBILE NUMBER :", record.mobile || "", record.mobile || "0000000000", 236, pageWidth - 18);
+    drawFit(ctx, "DATE & TIME :", 18, 90, 164, labelPaintSize);
+    drawFit(ctx, record.dateTime || "-", 94, 280, 163.6, detailSize);
+
+    const itemTop = 258;
+    const rowLeft = 56;
+    const rowRight = 558;
+    const rateSeparator = 390;
+    const firstRowTop = itemTop + 46;
+    const rowHeight = 20;
+    const rowGap = items.length <= 3 ? 14 : 8;
+    const itemBottom = Math.max(itemTop + 110, firstRowTop + (items.length * rowHeight) + ((items.length - 1) * rowGap) + 16);
+    drawRectStroke(ctx, 18, itemTop, pageWidth - 18, itemBottom, 1.1);
+    drawFit(ctx, "ITEM LIST:", 28, 170, itemTop + 17, labelPaintSize);
+    drawFit(ctx, "RATE", rateSeparator, rowRight, itemTop + 36, labelPaintSize, false, "center");
+    items.forEach((item, index) => {
+      const top = firstRowTop + (index * (rowHeight + rowGap));
+      const bottom = top + rowHeight;
+      drawFit(ctx, `${index + 1}.`, 24, rowLeft - 5, bottom - 6, labelPaintSize, false, "right");
+      drawRoundBox(ctx, rowLeft, top, rowRight, bottom, 8);
+      drawLine(ctx, rateSeparator, top + 1, rateSeparator, bottom - 1);
+      drawFitCenter(ctx, item || "-", rowLeft + 10, top, rateSeparator - 8, bottom, 8.1);
+      drawFitCenter(ctx, record.itemRates && record.itemRates[item] ? record.itemRates[item] : "-", rateSeparator + 5, top, rowRight - 8, bottom, 8.1, true);
+    });
+
+    const paymentTop = itemBottom + 18;
+    const paymentBottom = paymentTop + 150;
+    const paymentContentLeft = rowLeft;
+    const paymentContentRight = rowRight;
+    const modeWidth = (paymentContentRight - paymentContentLeft - 22) / 2;
+    drawRectStroke(ctx, 18, paymentTop, pageWidth - 18, paymentBottom, 1.1);
+    drawFit(ctx, "PAYMENT DETAILS:", 28, 210, paymentTop + 22, labelPaintSize);
+    drawReceiptModeCard(ctx, "CASH", record.cashAmount, record.cashAccount, paymentContentLeft, paymentTop + 46, modeWidth);
+    drawReceiptModeCard(ctx, "ONLINE", record.onlineAmount, record.onlineAccount, paymentContentLeft + modeWidth + 22, paymentTop + 46, modeWidth);
+    drawRoundBox(ctx, paymentContentLeft, paymentTop + 116, paymentContentRight, paymentTop + 136, 8);
+    drawLine(ctx, 318, paymentTop + 117, 318, paymentTop + 135);
+    drawFitCenter(ctx, "TOTAL AMOUNT", paymentContentLeft + 12, paymentTop + 116, 318 - 5, paymentTop + 136, labelPaintSize);
+    drawFitCenter(ctx, receiptCurrency(total), 325, paymentTop + 116, paymentContentRight - 8, paymentTop + 136, 9.1, true);
+
+    const footerTop = 808;
+    drawImageFit(ctx, assets.stamp, 365, Math.min(paymentBottom + 22, footerTop - 112), 555, footerTop - 8);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(6, footerTop, pageWidth - 12, 20);
+    drawFit(ctx, "Thank you for your business! We appreciate your trust in Indian Steel and look forward to serving you again.", 12, pageWidth - 12, 821, 8, true, "center", "#fff");
+  }
+
+  function drawReceiptModeCard(ctx, title, amount, account, left, top, width) {
+    const bottom = top + 58;
+    drawRoundBox(ctx, left, top, left + width, bottom, 8);
+    drawFit(ctx, title, left + 8, left + width - 8, top + 15, 8.8, true, "center");
+    drawRoundBox(ctx, left + 10, top + 22, left + width - 10, top + 42, 6);
+    drawFitCenter(ctx, receiptCurrency(amount), left + 12, top + 22, left + width - 12, top + 42, 9.1, true);
+    drawFit(ctx, amount > 0 ? account || "Indian Steel" : "-", left + 8, left + width - 8, bottom - 7, 7.2, true, "center");
   }
 
   function saleReceiptItems(entry) {
