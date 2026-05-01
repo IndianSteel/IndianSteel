@@ -1,16 +1,16 @@
-const CACHE_NAME = "indiansteel-pwa-20260501-android-top-line-mask-apk-67";
+const CACHE_NAME = "indiansteel-pwa-20260501-android-status-line-mask-apk-68";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
-  "./styles.css?v=20260501-android-top-line-mask-apk-67",
+  "./styles.css?v=20260501-android-status-line-mask-apk-68",
   "./app.js",
-  "./app.js?v=20260501-android-top-line-mask-apk-67",
+  "./app.js?v=20260501-android-status-line-mask-apk-68",
   "./manifest.webmanifest",
-  "./manifest.webmanifest?v=20260501-android-top-line-mask-apk-67",
+  "./manifest.webmanifest?v=20260501-android-status-line-mask-apk-68",
   "./icons/icon.svg",
   "./icons/indian-steel-logo.png",
-  "./icons/indian-steel-logo.png?v=20260501-android-top-line-mask-apk-67",
+  "./icons/indian-steel-logo.png?v=20260501-android-status-line-mask-apk-68",
   "./icons/whatsapp-icon.png",
   "./icons/receipt-logo.png",
   "./icons/receipt-stamp-signature.png"

@@ -8,7 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-android-top-line-mask-apk-67";
+  const APP_BUILD_VERSION = "20260501-android-status-line-mask-apk-68";
   const THEME_COLORS = {
     light: "#0d5bdd",
     dark: "#0b1f46"
@@ -999,11 +999,15 @@
         root.style.setProperty("--header-title-top", "0px");
         root.style.setProperty("--header-title-icon-top", "0px");
         root.style.setProperty("--android-top-mask-height", "3px");
+        root.style.setProperty("--android-status-line-top", "39px");
+        root.style.setProperty("--android-status-line-height", "4px");
       } else {
         root.style.removeProperty("--status-top");
         root.style.removeProperty("--header-title-top");
         root.style.removeProperty("--header-title-icon-top");
         root.style.removeProperty("--android-top-mask-height");
+        root.style.removeProperty("--android-status-line-top");
+        root.style.removeProperty("--android-status-line-height");
       }
       forceInstalledIosBottomNav(installedIos);
       const screenHeight = Math.round(Math.max(window.screen?.height || 0, window.screen?.availHeight || 0));
