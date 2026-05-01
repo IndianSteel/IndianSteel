@@ -1907,6 +1907,21 @@ select {
   background: var(--bg);
 }
 
+.settlement-popup-body,
+.settlement-item-list,
+.popup-account-options {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.settlement-popup-body::-webkit-scrollbar,
+.settlement-item-list::-webkit-scrollbar,
+.popup-account-options::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
 .entry-sketch-label {
   display: block;
   margin: 0 0 6px 2px;
@@ -2246,6 +2261,7 @@ select {
 
 .due-popup-overlay {
   z-index: 92;
+  padding-top: calc(96px + env(safe-area-inset-top, 0px));
 }
 
 .due-edit-popup {
