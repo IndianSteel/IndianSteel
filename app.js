@@ -8,6 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
+  const APP_BUILD_VERSION = "20260501-profile-sync-21";
   const DRIVE_FILE_NAME = "indiansteel_daily_sales_sync.json";
   const GOOGLE_DRIVE_CLIENT_ID = "18090278328-i9k2i3e78062hbfhpu7pkhe1s7uvuhql.apps.googleusercontent.com";
   const GOOGLE_DRIVE_FOLDER_ID = "1uqSmcaXlqAzGZ1QR0JctoORJsLNQrmy3";
@@ -17,6 +18,7 @@
   const RECEIPT_PAGE_HEIGHT = 842;
   const RECEIPT_LOGO_SRC = "./icons/receipt-logo.png";
   const RECEIPT_STAMP_SRC = "./icons/receipt-stamp-signature.png";
+  const DEFAULT_BUSINESS_NAME = "Indian Steel";
   const INDIAN_STEEL_OWNER_MOBILE = "8898644245";
   const INDIAN_STEEL_OWNER_NAME = "Saheb Alam";
   const INDIAN_STEEL_RECEIPT_EMAIL = "indianssteel@gmail.com";
@@ -219,7 +221,7 @@
       itemRates: {},
       accountOptions: DEFAULT_ACCOUNTS.slice(),
       businessProfile: {
-        name: "Indian Steel",
+        name: DEFAULT_BUSINESS_NAME,
         mobile: "",
         email: "",
         logoUri: ""
@@ -309,11 +311,25 @@
   function normalizeBusinessProfile(raw) {
     const source = raw && typeof raw === "object" ? raw : {};
     return {
-      name: String(source.name || "").trim() || "Indian Steel",
-      mobile: onlyDigits(source.mobile || ""),
+      name: String(source.name || "").trim() || DEFAULT_BUSINESS_NAME,
+      mobile: onlyDigits(source.mobile || source.phone || ""),
       email: String(source.email || "").trim(),
-      logoUri: String(source.logoUri || "").trim()
+      logoUri: normalizeBusinessLogoUri(source.logoUri || source.logo || "")
     };
+  }
+
+  function normalizeBusinessLogoUri(value) {
+    const logo = String(value || "").trim();
+    return isDefaultBusinessLogoUri(logo) ? "" : logo;
+  }
+
+  function isDefaultBusinessLogoUri(value) {
+    const logo = String(value || "").trim().replace(/^\.?\//, "").toLowerCase();
+    return !logo || logo === "icons/indian-steel-logo.png";
+  }
+
+  function isDefaultBusinessName(value) {
+    return !String(value || "").trim() || String(value || "").trim().toLowerCase() === DEFAULT_BUSINESS_NAME.toLowerCase();
   }
 
   function driveConfigured() {
@@ -1696,6 +1712,9 @@
 
   function profileLogoSrc(value) {
     const source = String(value || "").trim();
+    if (isDefaultBusinessLogoUri(source)) {
+      return session.picture && /^https?:\/\//i.test(session.picture) ? session.picture : "./icons/indian-steel-logo.png";
+    }
     if (/^(data:image\/|https?:\/\/|\.?\/)/i.test(source)) return source;
     if (session.picture && /^https?:\/\//i.test(session.picture)) return session.picture;
     return "./icons/indian-steel-logo.png";
@@ -1750,10 +1769,10 @@
   function displayBusinessProfileName(profile) {
     const savedName = String(profile && profile.name || "").trim();
     const sessionName = String(session.name || "").trim();
-    if ((!savedName || savedName === "Indian Steel") && sessionName && !sessionName.includes("@")) {
+    if (isDefaultBusinessName(savedName) && sessionName && !sessionName.includes("@")) {
       return titleCaseName(sessionName);
     }
-    return savedName || "Indian Steel";
+    return savedName || DEFAULT_BUSINESS_NAME;
   }
 
   function profileEditHeader(title, backScreen = "profile") {
@@ -1767,7 +1786,7 @@
   function ensureProfileDraft() {
     if (!ui.profileDraft) {
       ui.profileDraft = {
-        name: data.businessProfile.name || "Indian Steel",
+        name: data.businessProfile.name || DEFAULT_BUSINESS_NAME,
         mobile: onlyDigits(data.businessProfile.mobile || ""),
         email: session.email || data.businessProfile.email || "",
         logoUri: data.businessProfile.logoUri || ""
@@ -3953,6 +3972,7 @@
         email,
         name: profile.name || email,
         picture: profile.picture || "",
+        profileFetchedAt: Date.now(),
         lastLoginAt: Date.now(),
         localOnly: false
       };
@@ -4026,6 +4046,24 @@
     return response.json();
   }
 
+  async function refreshGoogleSessionProfile() {
+    if (!sync.token || !session.email) return;
+    const profileAge = Date.now() - Number(session.profileFetchedAt || 0);
+    const needsProfile = !session.picture || !session.name || session.name.includes("@") || isDefaultBusinessName(session.name) || profileAge > 24 * 60 * 60 * 1000;
+    if (!needsProfile) return;
+    const profile = await fetchGoogleProfile().catch(() => ({}));
+    const email = String(profile.email || session.email || "").trim().toLowerCase();
+    if (session.email && email && email !== String(session.email).trim().toLowerCase()) return;
+    session = {
+      ...session,
+      email: email || session.email,
+      name: profile.name || session.name || email || "",
+      picture: profile.picture || session.picture || "",
+      profileFetchedAt: Date.now()
+    };
+    persistSession();
+  }
+
   function queueSync(reason) {
     if (!navigator.onLine || !session.email) {
       sync.status = navigator.onLine ? "Saved locally" : "Offline changes pending";
@@ -4062,6 +4100,7 @@
       scheduleRender();
       return;
     }
+    await refreshGoogleSessionProfile();
     sync.busy = true;
     sync.status = "Syncing Drive";
     scheduleRender();
@@ -4177,6 +4216,13 @@
     const remote = normalizeBusinessProfile(remoteRaw);
     const local = normalizeBusinessProfile(localRaw);
     const localLooksDefault = isDefaultBusinessProfile(local);
+    const remoteLooksDefault = isDefaultBusinessProfile(remote);
+    if (localLooksDefault && !remoteLooksDefault) return remote;
+    if (remoteLooksDefault && !localLooksDefault) return local;
+    const localHasCustomName = !isDefaultBusinessName(local.name);
+    const remoteHasCustomName = !isDefaultBusinessName(remote.name);
+    if (remoteHasCustomName && !localHasCustomName) return mergePreferredBusinessProfile(remote, local);
+    if (localHasCustomName && !remoteHasCustomName) return mergePreferredBusinessProfile(local, remote);
     const pick = (remoteValue, localValue) => {
       const localText = String(localValue || "").trim();
       const remoteText = String(remoteValue || "").trim();
@@ -4193,15 +4239,26 @@
     });
   }
 
+  function mergePreferredBusinessProfile(preferred, fallback) {
+    return normalizeBusinessProfile({
+      name: preferred.name || fallback.name || DEFAULT_BUSINESS_NAME,
+      mobile: preferred.mobile || fallback.mobile,
+      email: preferred.email || fallback.email,
+      logoUri: preferred.logoUri || fallback.logoUri
+    });
+  }
+
   function isDefaultBusinessProfile(profile) {
     const name = String(profile && profile.name || "").trim();
     const mobile = onlyDigits(profile && profile.mobile || "");
     const email = String(profile && profile.email || "").trim().toLowerCase();
     const logo = String(profile && profile.logoUri || "").trim();
-    const defaultName = !name || name === "Indian Steel";
+    const sessionEmail = String(session && session.email || "").trim().toLowerCase();
+    const defaultName = isDefaultBusinessName(name);
     const defaultMobile = !mobile || mobile === INDIAN_STEEL_OWNER_MOBILE;
-    const defaultEmail = !email || email === INDIAN_STEEL_BUSINESS_EMAIL;
-    return defaultName && defaultMobile && defaultEmail && !logo;
+    const defaultEmail = !email || email === INDIAN_STEEL_BUSINESS_EMAIL || email === INDIAN_STEEL_RECEIPT_EMAIL || (sessionEmail && email === sessionEmail);
+    const defaultLogo = isDefaultBusinessLogoUri(logo);
+    return defaultName && defaultMobile && defaultEmail && defaultLogo;
   }
 
   function mergeStock(remote, local) {
@@ -4231,7 +4288,10 @@
     render();
     void loadReceiptAssets();
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js").catch(() => {});
+      navigator.serviceWorker
+        .register(`./sw.js?v=${APP_BUILD_VERSION}`, { updateViaCache: "none" })
+        .then(registration => registration.update().catch(() => {}))
+        .catch(() => {});
     }
     window.addEventListener("online", () => {
       sync.status = "Back online";
