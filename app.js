@@ -8,7 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-ios-nav-apk-tuned-apk-60";
+  const APP_BUILD_VERSION = "20260501-ios-nav-height-trim-apk-61";
   const THEME_COLORS = {
     light: "#0d5bdd",
     dark: "#0b1f46"
@@ -913,18 +913,18 @@
       @media (max-width: 480px) {
         .bottom-nav {
           bottom: 0 !important;
-          height: calc(52px + var(--safe-bottom) + 10px) !important;
-          min-height: calc(52px + var(--safe-bottom) + 10px) !important;
-          max-height: calc(52px + var(--safe-bottom) + 10px) !important;
-          padding-bottom: 10px !important;
-          grid-template-rows: 52px !important;
+          height: 56px !important;
+          min-height: 56px !important;
+          max-height: 56px !important;
+          padding-bottom: 6px !important;
+          grid-template-rows: 50px !important;
           align-content: end !important;
           align-items: center !important;
         }
         .nav-item {
-          height: 52px !important;
-          min-height: 52px !important;
-          max-height: 52px !important;
+          height: 50px !important;
+          min-height: 50px !important;
+          max-height: 50px !important;
           gap: 3px !important;
           font-size: 10px !important;
           line-height: 12px !important;
@@ -934,8 +934,8 @@
           height: 18px !important;
         }
         .nav-plus {
-          width: 46px !important;
-          height: 46px !important;
+          width: 44px !important;
+          height: 44px !important;
         }
         .nav-plus svg,
         .round-add svg {
@@ -975,13 +975,13 @@
       root.dataset.pwaPlatform = isiOS ? "ios" : "other";
       root.classList.toggle("ios-pwa-nav", installedIos);
       if (installedIos) {
-        root.style.setProperty("--nav-height", "52px");
-        root.style.setProperty("--nav-plus-size", "46px");
+        root.style.setProperty("--nav-height", "50px");
+        root.style.setProperty("--nav-plus-size", "44px");
         root.style.setProperty("--nav-plus-icon-size", "26px");
         root.style.setProperty("--installed-nav-drop", "0px");
         root.style.setProperty("--ios-nav-bottom", "0px");
-        root.style.setProperty("--ios-nav-safe-fill", "var(--safe-bottom)");
-        root.style.setProperty("--ios-nav-row-lift", "10px");
+        root.style.setProperty("--ios-nav-safe-fill", "0px");
+        root.style.setProperty("--ios-nav-row-lift", "6px");
       } else {
         root.style.removeProperty("--nav-height");
         root.style.removeProperty("--nav-plus-size");

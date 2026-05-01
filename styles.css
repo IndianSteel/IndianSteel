@@ -54,42 +54,42 @@
 
 :root[data-pwa-installed="true"][data-pwa-platform="ios"],
 :root.ios-pwa-nav {
-  --nav-height: 52px;
+  --nav-height: 50px;
   --installed-nav-drop: 0px;
   --ios-nav-bottom: 0px;
-  --ios-nav-safe-fill: var(--safe-bottom);
-  --ios-nav-row-lift: 10px;
-  --nav-plus-size: 46px;
+  --ios-nav-safe-fill: 0px;
+  --ios-nav-row-lift: 6px;
+  --nav-plus-size: 44px;
   --nav-plus-icon-size: 26px;
 }
 
 @supports (-webkit-touch-callout: none) {
   @media (max-width: 480px) {
     :root.ios-pwa-nav {
-      --nav-height: 52px;
+      --nav-height: 50px;
       --installed-nav-drop: 0px;
       --ios-nav-bottom: 0px;
-      --ios-nav-safe-fill: var(--safe-bottom);
-      --ios-nav-row-lift: 10px;
-      --nav-plus-size: 46px;
+      --ios-nav-safe-fill: 0px;
+      --ios-nav-row-lift: 6px;
+      --nav-plus-size: 44px;
       --nav-plus-icon-size: 26px;
     }
 
     :root.ios-pwa-nav .bottom-nav {
       bottom: 0 !important;
-      height: calc(52px + var(--safe-bottom) + 10px) !important;
-      min-height: calc(52px + var(--safe-bottom) + 10px) !important;
-      max-height: calc(52px + var(--safe-bottom) + 10px) !important;
-      padding-bottom: 10px !important;
-      grid-template-rows: 52px !important;
+      height: 56px !important;
+      min-height: 56px !important;
+      max-height: 56px !important;
+      padding-bottom: 6px !important;
+      grid-template-rows: 50px !important;
       align-content: end !important;
       align-items: center !important;
     }
 
     :root.ios-pwa-nav .nav-item {
-      height: 52px !important;
-      min-height: 52px !important;
-      max-height: 52px !important;
+      height: 50px !important;
+      min-height: 50px !important;
+      max-height: 50px !important;
       gap: 3px !important;
       font-size: 10px !important;
       line-height: 12px !important;
@@ -101,8 +101,8 @@
     }
 
     :root.ios-pwa-nav .nav-plus {
-      width: 46px !important;
-      height: 46px !important;
+      width: 44px !important;
+      height: 44px !important;
     }
 
     :root.ios-pwa-nav .nav-plus svg,
