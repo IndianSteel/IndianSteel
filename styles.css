@@ -25,6 +25,7 @@
   --system-nav-lift: 0px;
   --installed-nav-drop: 0px;
   --ios-nav-bottom: calc(var(--system-nav-lift) - var(--installed-nav-drop));
+  --ios-nav-safe-fill: 0px;
   --nav-plus-size: 54px;
   --nav-plus-icon-size: 30px;
   --bottom-nav-space: calc(var(--nav-height) + var(--system-nav-lift));
@@ -52,55 +53,58 @@
 
 :root[data-pwa-installed="true"][data-pwa-platform="ios"],
 :root.ios-pwa-nav {
-  --nav-height: 46px;
+  --nav-height: 40px;
   --installed-nav-drop: 0px;
-  --ios-nav-bottom: 0px;
-  --nav-plus-size: 42px;
-  --nav-plus-icon-size: 24px;
+  --ios-nav-bottom: calc(-1 * var(--safe-bottom));
+  --ios-nav-safe-fill: var(--safe-bottom);
+  --nav-plus-size: 36px;
+  --nav-plus-icon-size: 22px;
 }
 
 @supports (-webkit-touch-callout: none) {
   @media (max-width: 480px) {
-    :root {
-      --nav-height: 46px;
+    :root.ios-pwa-nav {
+      --nav-height: 40px;
       --installed-nav-drop: 0px;
-      --ios-nav-bottom: 0px;
-      --nav-plus-size: 42px;
-      --nav-plus-icon-size: 24px;
+      --ios-nav-bottom: calc(-1 * var(--safe-bottom));
+      --ios-nav-safe-fill: var(--safe-bottom);
+      --nav-plus-size: 36px;
+      --nav-plus-icon-size: 22px;
     }
 
-    .bottom-nav {
-      bottom: 0 !important;
-      height: 46px !important;
-      min-height: 46px !important;
-      max-height: 46px !important;
+    :root.ios-pwa-nav .bottom-nav {
+      bottom: calc(-1 * var(--safe-bottom)) !important;
+      height: calc(40px + var(--safe-bottom)) !important;
+      min-height: calc(40px + var(--safe-bottom)) !important;
+      max-height: calc(40px + var(--safe-bottom)) !important;
       padding-bottom: 0 !important;
-      align-items: center !important;
+      align-items: start !important;
+      grid-auto-rows: 40px !important;
     }
 
-    .nav-item {
-      height: 46px !important;
-      min-height: 46px !important;
-      max-height: 46px !important;
+    :root.ios-pwa-nav .nav-item {
+      height: 40px !important;
+      min-height: 40px !important;
+      max-height: 40px !important;
       gap: 1px !important;
       font-size: 8px !important;
       line-height: 10px !important;
     }
 
-    .nav-item svg {
+    :root.ios-pwa-nav .nav-item svg {
       width: 16px !important;
       height: 16px !important;
     }
 
-    .nav-plus {
-      width: 42px !important;
-      height: 42px !important;
+    :root.ios-pwa-nav .nav-plus {
+      width: 36px !important;
+      height: 36px !important;
     }
 
-    .nav-plus svg,
-    .round-add svg {
-      width: 24px !important;
-      height: 24px !important;
+    :root.ios-pwa-nav .nav-plus svg,
+    :root.ios-pwa-nav .round-add svg {
+      width: 22px !important;
+      height: 22px !important;
     }
   }
 }
@@ -1799,13 +1803,13 @@ select {
   bottom: var(--ios-nav-bottom);
   transform: translateX(-50%);
   width: min(100vw, 480px);
-  height: var(--nav-height);
+  height: calc(var(--nav-height) + var(--ios-nav-safe-fill));
   padding-bottom: 0;
   background: var(--card);
   border-top: 1px solid var(--line);
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  align-items: center;
+  align-items: start;
   z-index: 50;
 }
 

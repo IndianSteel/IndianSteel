@@ -8,7 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-ios-nav-force-cache-apk-57";
+  const APP_BUILD_VERSION = "20260501-ios-nav-bottom-fit-apk-58";
   const THEME_COLORS = {
     light: "#0d5bdd",
     dark: "#0b1f46"
@@ -912,17 +912,18 @@
     style.textContent = `
       @media (max-width: 480px) {
         .bottom-nav {
-          bottom: 0 !important;
-          height: 46px !important;
-          min-height: 46px !important;
-          max-height: 46px !important;
+          bottom: calc(-1 * var(--safe-bottom)) !important;
+          height: calc(40px + var(--safe-bottom)) !important;
+          min-height: calc(40px + var(--safe-bottom)) !important;
+          max-height: calc(40px + var(--safe-bottom)) !important;
           padding-bottom: 0 !important;
-          align-items: center !important;
+          align-items: start !important;
+          grid-auto-rows: 40px !important;
         }
         .nav-item {
-          height: 46px !important;
-          min-height: 46px !important;
-          max-height: 46px !important;
+          height: 40px !important;
+          min-height: 40px !important;
+          max-height: 40px !important;
           gap: 1px !important;
           font-size: 8px !important;
           line-height: 10px !important;
@@ -932,13 +933,13 @@
           height: 16px !important;
         }
         .nav-plus {
-          width: 42px !important;
-          height: 42px !important;
+          width: 36px !important;
+          height: 36px !important;
         }
         .nav-plus svg,
         .round-add svg {
-          width: 24px !important;
-          height: 24px !important;
+          width: 22px !important;
+          height: 22px !important;
         }
       }
     `;
@@ -973,17 +974,19 @@
       root.dataset.pwaPlatform = isiOS ? "ios" : "other";
       root.classList.toggle("ios-pwa-nav", installedIos);
       if (installedIos) {
-        root.style.setProperty("--nav-height", "46px");
-        root.style.setProperty("--nav-plus-size", "42px");
-        root.style.setProperty("--nav-plus-icon-size", "24px");
+        root.style.setProperty("--nav-height", "40px");
+        root.style.setProperty("--nav-plus-size", "36px");
+        root.style.setProperty("--nav-plus-icon-size", "22px");
         root.style.setProperty("--installed-nav-drop", "0px");
-        root.style.setProperty("--ios-nav-bottom", "0px");
+        root.style.setProperty("--ios-nav-bottom", "calc(-1 * var(--safe-bottom))");
+        root.style.setProperty("--ios-nav-safe-fill", "var(--safe-bottom)");
       } else {
         root.style.removeProperty("--nav-height");
         root.style.removeProperty("--nav-plus-size");
         root.style.removeProperty("--nav-plus-icon-size");
         root.style.removeProperty("--installed-nav-drop");
         root.style.removeProperty("--ios-nav-bottom");
+        root.style.removeProperty("--ios-nav-safe-fill");
       }
       forceInstalledIosBottomNav(installedIos);
       root.style.setProperty("--app-stable-height", `${Math.max(stableViewportHeight, 320)}px`);
