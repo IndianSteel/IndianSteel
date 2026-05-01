@@ -8,7 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-profile-logo-23";
+  const APP_BUILD_VERSION = "20260501-logout-gate-25";
   const DRIVE_FILE_NAME = "indiansteel_daily_sales_sync.json";
   const GOOGLE_DRIVE_CLIENT_ID = "18090278328-i9k2i3e78062hbfhpu7pkhe1s7uvuhql.apps.googleusercontent.com";
   const GOOGLE_DRIVE_FOLDER_ID = "1uqSmcaXlqAzGZ1QR0JctoORJsLNQrmy3";
@@ -708,12 +708,8 @@
     }, true);
   }
 
-  function hasLocalBusinessData() {
-    return Boolean(data.entries.length || data.advanceRecords.length || data.stockItems.length);
-  }
-
   function canOpenApp() {
-    return Boolean(session.email || session.localOnly || hasLocalBusinessData());
+    return Boolean(session.email);
   }
 
   function normalizedSessionEmail() {
@@ -732,8 +728,7 @@
 
   function currentUserAccess() {
     const email = normalizedSessionEmail();
-    const localAdmin = !email && session.localOnly;
-    if (localAdmin || BUILT_IN_ADMINS.has(email)) {
+    if (BUILT_IN_ADMINS.has(email)) {
       return {
         email,
         role: "Admin",
@@ -858,7 +853,7 @@
           <p class="login-kicker">Welcome to</p>
           <h1>Indian Steel</h1>
           <div class="login-logo-ring">
-            <img class="login-logo" src="./icons/indian-steel-logo.png" alt="Indian Steel">
+            <img class="login-logo" src="${esc(BUSINESS_LOGO_SRC)}" alt="Indian Steel">
           </div>
           <section class="card login-card">
             <h2>Secure Business Access</h2>
@@ -867,7 +862,6 @@
               ${svg("user")}
               <span>Login with Gmail</span>
             </button>
-            ${hasLocalBusinessData() ? '<button class="secondary-button" data-action="continue-local">Open Offline Data</button>' : ""}
             <p class="login-status ${statusText && statusText.toLowerCase().includes("failed") ? "error-text" : ""}">${esc(ui.error || statusText || "Ready")}</p>
           </section>
           <p class="developer-label">Developed By</p>
@@ -2831,11 +2825,6 @@
       sync.status = driveConfigured() ? "Sync ready" : "Sync setup required";
       ui.error = driveConfigured() ? "" : "Google sync is not configured in this app.";
     }
-    if (action === "continue-local") {
-      session.localOnly = true;
-      persistSession();
-      scheduleRender();
-    }
     if (action === "profile") ui.screen = "profile";
     if (action === "close-profile") ui.screen = "profile";
     if (action === "open-add") {
@@ -3971,8 +3960,7 @@
         name: profile.name || email,
         picture: profile.picture || "",
         profileFetchedAt: Date.now(),
-        lastLoginAt: Date.now(),
-        localOnly: false
+        lastLoginAt: Date.now()
       };
       recordUserActivity(email);
       persistSession();
