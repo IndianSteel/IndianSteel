@@ -52,6 +52,13 @@
   --installed-nav-drop: min(12px, var(--safe-bottom));
 }
 
+:root[data-pwa-installed="true"][data-pwa-platform="android"],
+:root.android-pwa-header {
+  --status-top: 6px;
+  --header-title-top: 4px;
+  --header-title-icon-top: 0px;
+}
+
 :root[data-pwa-installed="true"][data-pwa-platform="ios"],
 :root.ios-pwa-nav {
   --nav-height: 76px;
