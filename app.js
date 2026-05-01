@@ -8,7 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-settlements-apk-27";
+  const APP_BUILD_VERSION = "20260501-settlements-apk-28";
   const DRIVE_FILE_NAME = "indiansteel_daily_sales_sync.json";
   const GOOGLE_DRIVE_CLIENT_ID = "18090278328-i9k2i3e78062hbfhpu7pkhe1s7uvuhql.apps.googleusercontent.com";
   const GOOGLE_DRIVE_FOLDER_ID = "1uqSmcaXlqAzGZ1QR0JctoORJsLNQrmy3";
@@ -84,6 +84,7 @@
     advanceOpen: false,
     advanceDraft: null,
     advanceOpenKey: "",
+    advancePayMode: "",
     dueOpenKey: "",
     advanceReleaseId: "",
     advanceReleaseDraft: null,
@@ -585,6 +586,38 @@
     return Number(record && record.cashAmount || 0) + Number(record && record.onlineAmount || 0);
   }
 
+  function roundCurrencyValue(value) {
+    return Math.round(Number(value || 0) * 100) / 100;
+  }
+
+  function advanceUsageHistory(record) {
+    return Array.isArray(record && record.usageHistory) ? record.usageHistory : [];
+  }
+
+  function lifetimeAdvanceAmount(record) {
+    return advanceTotal(record) + advanceUsageHistory(record).reduce((sum, item) => sum + Number(item.amountUsed || 0), 0);
+  }
+
+  function lifetimeCashAmount(record) {
+    const lifetimeTotal = lifetimeAdvanceAmount(record);
+    const total = advanceTotal(record);
+    if (lifetimeTotal <= 0) return 0;
+    if (total > 0) return roundCurrencyValue(lifetimeTotal * (Number(record.cashAmount || 0) / total));
+    if (String(record.method || "").toLowerCase() === "cash") return lifetimeTotal;
+    if (String(record.method || "").toLowerCase() === "online") return 0;
+    return Number(record.cashAmount || 0);
+  }
+
+  function lifetimeOnlineAmount(record) {
+    const lifetimeTotal = lifetimeAdvanceAmount(record);
+    const total = advanceTotal(record);
+    if (lifetimeTotal <= 0) return 0;
+    if (total > 0) return roundCurrencyValue(Math.max(0, lifetimeTotal - lifetimeCashAmount(record)));
+    if (String(record.method || "").toLowerCase() === "online") return lifetimeTotal;
+    if (String(record.method || "").toLowerCase() === "cash") return 0;
+    return Number(record.onlineAmount || 0);
+  }
+
   function customerMobileMatch(aCustomer, aMobile, bCustomer, bMobile) {
     return titleCaseName(aCustomer || "").trim().toLowerCase() === titleCaseName(bCustomer || "").trim().toLowerCase() &&
       onlyDigits(aMobile || "") === onlyDigits(bMobile || "");
@@ -730,6 +763,7 @@
     ui.recentOpen = "";
     ui.historyOpen = "";
     ui.advanceOpenKey = "";
+    ui.advancePayMode = "";
     ui.dueOpenKey = "";
     scheduleRender();
   }
@@ -1283,7 +1317,7 @@
     const total = data.advanceRecords.reduce((sum, record) => sum + advanceTotal(record), 0);
     const showTotal = effectiveVisibility().advanceTotalVisible !== false;
     const showAdd = canWriteData();
-    const columns = showAdd && showTotal ? "minmax(0,1fr) 58px minmax(0,1fr)" : showAdd ? "minmax(0,1fr) 58px" : showTotal ? "minmax(0,1fr) minmax(0,1fr)" : "minmax(0,1fr)";
+    const columns = showAdd && showTotal ? "minmax(0,1fr) 56px minmax(0,1fr)" : showAdd ? "minmax(0,1fr) 56px" : showTotal ? "minmax(0,1fr) minmax(0,1fr)" : "minmax(0,1fr)";
     return `
       <div class="settlement-summary-grid" style="grid-template-columns:${columns};">
         ${compactTotalCard("Advance Entries", data.advanceRecords.length)}
@@ -1322,7 +1356,7 @@
     return `
       <article class="card settlement-card ${open ? "is-open" : ""}">
         <div class="settlement-card-main" data-toggle-advance="${esc(key)}">
-          <span class="tile blue">${svg("chart")}</span>
+          <span class="tile blue">${svg("card")}</span>
           <span class="row-main">
             <b>${esc(record.customer || "-")}</b>
             <span>${esc(record.dateTime || "-")}</span>
@@ -1330,7 +1364,6 @@
           <span class="row-right"><span class="money orange">${esc(money(total))}</span><br>${esc(record.method || paymentModeLabel(record.cashAmount, record.onlineAmount))}</span>
           <span class="settlement-card-actions">
             ${total > 0 ? `<button class="mini-action whatsapp-action" data-share-advance="${esc(key)}" aria-label="Share advance receipt">${whatsappIcon()}</button>` : ""}
-            ${canWriteData() && total > 0 ? `<button class="mini-action" data-open-release-advance="${esc(key)}" aria-label="Release advance">${svg("edit")}</button>` : ""}
             ${canDelete ? `<button class="mini-action danger" data-delete-advance="${esc(key)}" aria-label="Delete advance">${svg("delete")}</button>` : ""}
           </span>
         </div>
@@ -1340,54 +1373,76 @@
 
   function advanceSettlementDetail(record) {
     const total = advanceTotal(record);
-    const items = record.itemNames && record.itemNames.length ? record.itemNames : ["No items selected"];
+    const items = record.itemNames && record.itemNames.length ? record.itemNames : [];
+    const history = advanceUsageHistory(record);
+    const lifetimeTotal = lifetimeAdvanceAmount(record);
     return `
       <div class="detail-box settlement-detail" data-settlement-dropdown>
         <div class="detail-top">
           <div class="detail-info">
             ${detailInline("Mobile Number", record.mobile || "-")}
-            ${detailInline("Date & Time", record.dateTime || "-")}
           </div>
+          ${canWriteData() && total > 0 ? `<button class="mini-action advance-dropdown-edit" data-open-release-advance="${esc(record.id)}" aria-label="Release advance">${svg("edit")}</button>` : ""}
         </div>
         <div class="detail-divider"></div>
         <h3 class="detail-heading">Item List:</h3>
         <div class="detail-item-list">
-          ${items.map((item, index) => advanceItemBlock(record, item, index)).join("")}
+          ${items.length ? items.map((item, index) => advanceItemBlock(record, item, index)).join("") : advanceItemChip("-")}
         </div>
-        <h3 class="detail-heading payment-heading">Payment Details:</h3>
+        <h3 class="detail-heading payment-heading">Advance Payment Details:</h3>
         <section class="detail-payment-box">
           <div class="detail-payment-modes">
-            ${detailPayMode("Cash", record.cashAmount, record.cashAccount)}
-            ${detailPayMode("Online", record.onlineAmount, record.onlineAccount)}
+            ${advancePayModeCard(record, "Cash", lifetimeCashAmount(record), record.cashAccount)}
+            ${advancePayModeCard(record, "Online", lifetimeOnlineAmount(record), record.onlineAccount)}
           </div>
-          ${detailAmountRow("Total Amount", total, true)}
-          ${record.usageHistory && record.usageHistory.length ? advanceConsumedHistory(record) : ""}
+          ${detailAmountRow("Total Amount", lifetimeTotal, true)}
+          ${history.length ? advanceConsumedHistory(history) : ""}
         </section>
       </div>`;
   }
 
   function advanceItemBlock(record, item, index) {
     const rate = record.itemRates && record.itemRates[item] ? record.itemRates[item] : "";
-    return `
-      <article class="detail-item-card">
-        <div class="detail-item-name">${index + 1}. ${esc(String(item || "-").toUpperCase())}</div>
-        ${rate ? detailSmallPill("Rate", rate, "amount") : ""}
-      </article>`;
+    return `<div class="advance-item-rate-row"><span>${index + 1}. ${esc(String(item || "-").toUpperCase())}</span><b>${esc(rate || "-")}</b></div>`;
   }
 
-  function advanceConsumedHistory(record) {
+  function advanceItemChip(text) {
+    return `<div class="advance-item-chip">${esc(text)}</div>`;
+  }
+
+  function advancePayModeCard(record, label, amount, account) {
+    const modeKey = `${record.id}|${label}`;
+    const active = Number(amount || 0) > 0;
+    const expanded = active && ui.advancePayMode === modeKey;
     return `
-      <div class="detail-history-card">
-        <h3 class="detail-heading">History:</h3>
-        ${(record.usageHistory || []).map((item, index) => `
-          <div class="detail-history-row">
+      <button class="detail-pay-mode advance-pay-mode ${active ? "active" : "disabled"} ${expanded ? "expanded" : ""}" ${active ? `data-advance-pay-mode="${esc(modeKey)}"` : "disabled"}>
+        <span>${esc(label)}</span>
+        <b>${esc(numberText(amount))}</b>
+        ${expanded ? `<small class="account-panel"><em>ACCOUNT</em><strong>${esc(String(account || "Indian Steel").toUpperCase())}</strong></small>` : ""}
+      </button>`;
+  }
+
+  function advanceConsumedHistory(history) {
+    return `
+      <div class="advance-history-box">
+        <h3 class="detail-heading">Advance Used:</h3>
+        ${history.map((item, index) => {
+          const released = String(item.saleNumber || "").toLowerCase() === "amount released";
+          return `<div class="advance-history-row">
             <span>${index + 1}.</span>
             <div>
-              ${detailAmountRow(item.saleNumber || "Amount Used", item.amountUsed, true)}
-              ${item.dateTime ? detailTextRow("Date", item.dateTime) : ""}
+              ${advanceHistorySplitRow(released ? "Amount Released" : "Sale Number", item.saleNumber || "-", released)}
+              ${advanceHistorySplitRow("Date & Time", item.dateTime || "-")}
+              ${advanceHistorySplitRow(released ? "Released Amount" : "Amount Used", money(item.amountUsed))}
             </div>
-          </div>`).join("")}
+          </div>`;
+        }).join("")}
       </div>`;
+  }
+
+  function advanceHistorySplitRow(label, value, fullWidthLabel = false) {
+    if (fullWidthLabel) return `<div class="advance-history-split full"><span>${esc(label.toUpperCase())}</span></div>`;
+    return `<div class="advance-history-split"><span>${esc(label.toUpperCase())}</span><b>${esc(value || "-")}</b></div>`;
   }
 
   function dueSettlementCard(summary) {
@@ -1830,6 +1885,7 @@
       <div class="overlay settlement-popup-overlay" data-overlay-close="advance">
         <section class="settlement-popup advance-entry-popup" data-sheet>
           <div class="settlement-popup-head">
+            <span></span>
             <b>ADVANCE PAYMENT ENTRY</b>
             <button class="settlement-popup-close" data-action="close-advance" aria-label="Close">X</button>
           </div>
@@ -2968,6 +3024,7 @@
     document.querySelectorAll("[data-toggle-advance]").forEach(el => el.addEventListener("click", event => {
       if (event.target.closest("button,a,input,select,textarea,label")) return;
       ui.advanceOpenKey = ui.advanceOpenKey === el.dataset.toggleAdvance ? "" : el.dataset.toggleAdvance;
+      ui.advancePayMode = "";
       ui.dueOpenKey = "";
       scheduleRender();
     }));
@@ -2975,6 +3032,17 @@
       if (event.target.closest("button,a,input,select,textarea,label")) return;
       ui.dueOpenKey = ui.dueOpenKey === el.dataset.toggleDue ? "" : el.dataset.toggleDue;
       ui.advanceOpenKey = "";
+      ui.advancePayMode = "";
+      scheduleRender();
+    }));
+    document.querySelectorAll("[data-advance-pay-mode]").forEach(el => el.addEventListener("click", event => {
+      event.stopPropagation();
+      ui.advancePayMode = ui.advancePayMode === el.dataset.advancePayMode ? "" : el.dataset.advancePayMode;
+      scheduleRender();
+    }));
+    document.querySelectorAll("[data-settlement-dropdown]").forEach(el => el.addEventListener("click", event => {
+      if (!ui.advancePayMode || event.target.closest("[data-advance-pay-mode]")) return;
+      ui.advancePayMode = "";
       scheduleRender();
     }));
     document.querySelectorAll("[data-overlay-close]").forEach(el => el.addEventListener("click", event => {
@@ -4203,9 +4271,23 @@
     const pageWidth = RECEIPT_PAGE_WIDTH;
     const pageHeight = RECEIPT_PAGE_HEIGHT;
     const labelPaintSize = 8.8;
-    const detailSize = 7.8;
+    const smallPaintSize = 8.1;
+    const detailOutputSize = 7.8;
+    const amountPaintSize = 9.1;
     const total = advanceTotal(record);
-    const items = record.itemNames && record.itemNames.length ? record.itemNames.slice(0, 6) : ["Advance Payment"];
+    const advanceItems = (record.itemNames && record.itemNames.length ? record.itemNames : ["-"]).map(item => [
+      item,
+      item === "-" ? "-" : record.itemRates && record.itemRates[item] ? record.itemRates[item] : "-"
+    ]);
+    const maxReceiptRows = 6;
+    const receiptItems = advanceItems.length <= maxReceiptRows
+      ? advanceItems
+      : advanceItems.slice(0, maxReceiptRows - 1).concat([[`+${advanceItems.length - maxReceiptRows + 1} more`, "-"]]);
+    const history = advanceUsageHistory(record);
+    const cashAmount = lifetimeCashAmount(record);
+    const onlineAmount = lifetimeOnlineAmount(record);
+    const lifetimeTotal = lifetimeAdvanceAmount(record);
+    const showAvailableAdvance = history.length > 0 || Math.abs(lifetimeTotal - total) > 0.0001;
 
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, pageWidth, pageHeight);
@@ -4218,66 +4300,136 @@
     drawFit(ctx, INDIAN_STEEL_OWNER_MOBILE, 518, 588, 27, 6.6);
     drawFit(ctx, INDIAN_STEEL_RECEIPT_EMAIL, 518, 588, 42, 6.6);
     drawFit(ctx, "Buyer & Seller of Scaffolding and All Types of Scrap", 90, 505, 119, 13.5, true, "center");
-    drawRectStroke(ctx, 6, 130, pageWidth - 6, 148, 0.75);
-    drawLocationIcon(ctx, 26, 139);
-    drawFit(ctx, INDIAN_STEEL_RECEIPT_ADDRESS, 38, pageWidth - 18, 142, 7.8);
+    const addressBox = { left: 6, top: 130, right: pageWidth - 6, bottom: 148 };
+    const addressCenterY = (addressBox.top + addressBox.bottom) / 2;
+    drawRectStroke(ctx, addressBox.left, addressBox.top, addressBox.right, addressBox.bottom, 0.75);
+    setReceiptFont(ctx, 7.8, false);
+    const fittedAddress = fittedCanvasText(ctx, INDIAN_STEEL_RECEIPT_ADDRESS, addressBox.right - addressBox.left - 34);
+    const addressGroupWidth = 9 + 5 + ctx.measureText(fittedAddress).width;
+    const addressGroupLeft = addressBox.left + ((addressBox.right - addressBox.left - addressGroupWidth) / 2);
+    drawLocationIcon(ctx, addressGroupLeft + 4.5, addressCenterY);
+    drawFit(ctx, fittedAddress, addressGroupLeft + 14, addressBox.right - 10, addressCenterY + 2.9, 7.8);
 
-    drawFit(ctx, "ADVANCE PAYMENT RECEIPT", 155, 440, 195, 12, true, "center");
+    const detailRightEdge = pageWidth - 18;
+    const infoBaseline = 164;
+    const receiptTypeLabel = "RECEIPT TYPE :";
+    drawFit(ctx, receiptTypeLabel, 18, 110, infoBaseline, labelPaintSize);
+    drawFit(ctx, "ADVANCE", 18 + measureReceiptText(ctx, receiptTypeLabel, labelPaintSize) + 3, 245, infoBaseline - 0.4, detailOutputSize);
+    drawRightDetailPair(ctx, "DATE & TIME :", record.dateTime || "", record.dateTime || "00 Apr 0000, 00:00 AM", infoBaseline, detailRightEdge);
+
+    drawFit(ctx, "ADVANCE PAYMENT RECEIPT", 190, 405, 195, 12, true, "center", "#000");
     drawFit(ctx, "CUSTOMER NAME :", 18, 112, 236, labelPaintSize);
-    drawFit(ctx, record.customer || "-", 114, 285, 235.6, detailSize);
-    drawRightDetailPair(ctx, "MOBILE NUMBER :", record.mobile || "", record.mobile || "0000000000", 236, pageWidth - 18);
-    drawFit(ctx, "DATE & TIME :", 18, 90, 164, labelPaintSize);
-    drawFit(ctx, record.dateTime || "-", 94, 280, 163.6, detailSize);
+    drawFit(ctx, record.customer || "-", 18 + measureReceiptText(ctx, "CUSTOMER NAME :", labelPaintSize) + 3, 280, 235.6, detailOutputSize);
+    drawRightDetailPair(ctx, "MOBILE NUMBER :", record.mobile || "", record.mobile || "0000000000", 236, detailRightEdge);
 
-    const itemTop = 258;
+    const itemTop = 248;
     const rowLeft = 56;
     const rowRight = 558;
-    const rateSeparator = 390;
-    const firstRowTop = itemTop + 46;
+    const rateSeparator = 462;
+    const itemNumberRight = rowLeft - 5;
+    const itemHeaderBaseline = itemTop + 17;
+    const itemColumnBaseline = itemTop + 36;
+    const firstRowTop = itemTop + 50;
     const rowHeight = 20;
-    const rowGap = items.length <= 3 ? 14 : 8;
-    const itemBottom = Math.max(itemTop + 110, firstRowTop + (items.length * rowHeight) + ((items.length - 1) * rowGap) + 16);
+    const rowGap = receiptItems.length <= 3 ? 14 : 8;
+    const itemRowsHeight = (receiptItems.length * rowHeight) + (Math.max(0, receiptItems.length - 1) * rowGap);
+    const itemBottom = Math.max(itemTop + 112, firstRowTop + itemRowsHeight + 16);
     drawRectStroke(ctx, 18, itemTop, pageWidth - 18, itemBottom, 1.1);
-    drawFit(ctx, "ITEM LIST:", 28, 170, itemTop + 17, labelPaintSize);
-    drawFit(ctx, "RATE", rateSeparator, rowRight, itemTop + 36, labelPaintSize, false, "center");
-    items.forEach((item, index) => {
+    drawFit(ctx, "ITEM LIST:", 28, 170, itemHeaderBaseline, labelPaintSize);
+    drawFit(ctx, "ITEM", rowLeft, rateSeparator, itemColumnBaseline, labelPaintSize, false, "center");
+    drawFit(ctx, "RATE", rateSeparator, rowRight, itemColumnBaseline, labelPaintSize, false, "center");
+    receiptItems.forEach(([item, rate], index) => {
       const top = firstRowTop + (index * (rowHeight + rowGap));
       const bottom = top + rowHeight;
-      drawFit(ctx, `${index + 1}.`, 24, rowLeft - 5, bottom - 6, labelPaintSize, false, "right");
+      if (bottom > itemBottom - 10) return;
+      drawFit(ctx, `${index + 1}.`, 24, itemNumberRight, bottom - 6, labelPaintSize, false, "right");
       drawRoundBox(ctx, rowLeft, top, rowRight, bottom, 8);
       drawLine(ctx, rateSeparator, top + 1, rateSeparator, bottom - 1);
-      drawFitCenter(ctx, item || "-", rowLeft + 10, top, rateSeparator - 8, bottom, 8.1);
-      drawFitCenter(ctx, record.itemRates && record.itemRates[item] ? record.itemRates[item] : "-", rateSeparator + 5, top, rowRight - 8, bottom, 8.1, true);
+      drawFitCenter(ctx, item || "-", rowLeft + 10, top, rateSeparator - 8, bottom, smallPaintSize);
+      drawFitCenter(ctx, rate || "-", rateSeparator + 7, top, rowRight - 8, bottom, amountPaintSize, true);
     });
 
-    const paymentTop = itemBottom + 18;
-    const paymentBottom = paymentTop + 150;
     const paymentContentLeft = rowLeft;
     const paymentContentRight = rowRight;
-    const modeWidth = (paymentContentRight - paymentContentLeft - 22) / 2;
+    const paymentSummaryDivider = 318;
+    function drawAdvancePaymentRow(top, label, value) {
+      drawRoundBox(ctx, paymentContentLeft, top, paymentContentRight, top + 17, 8);
+      drawLine(ctx, paymentSummaryDivider, top + 1, paymentSummaryDivider, top + 16);
+      drawFitCenter(ctx, label, paymentContentLeft + 12, top, paymentSummaryDivider - 5, top + 17, labelPaintSize);
+      drawFitCenter(ctx, value, paymentSummaryDivider + 7, top, paymentContentRight - 8, top + 17, amountPaintSize, true);
+    }
+    const paymentRows = [["TOTAL ADVANCE", receiptCurrency(lifetimeTotal)]];
+    if (showAvailableAdvance) paymentRows.push(["AVAILABLE ADVANCE", receiptCurrency(total)]);
+
+    const paymentTop = itemBottom + 17;
+    const modeCardTop = paymentTop + 43;
+    const modeCardHeight = 48;
+    const modeCardGap = 24;
+    const modeCardWidth = (paymentContentRight - paymentContentLeft - modeCardGap) / 2;
+    const cashCardLeft = paymentContentLeft;
+    const cashCardRight = cashCardLeft + modeCardWidth;
+    const onlineCardRight = paymentContentRight;
+    const onlineCardLeft = onlineCardRight - modeCardWidth;
+    const paymentSummaryTop = modeCardTop + modeCardHeight + 16;
+    const paymentSummaryStep = 21;
+    const paymentRowsBottom = paymentSummaryTop + (Math.max(0, paymentRows.length - 1) * paymentSummaryStep) + 17;
+
+    const historyRows = history.length ? history.slice(0, 3).map(item => {
+      const released = String(item.saleNumber || "").toLowerCase() === "amount released";
+      return [
+        released ? "AMOUNT RELEASED" : `SALE ${item.saleNumber || "-"}`,
+        item.dateTime || "-",
+        receiptCurrency(item.amountUsed)
+      ];
+    }) : [];
+    if (history.length > 3) historyRows.push([`+${history.length - 3} MORE`, "-", "-"]);
+    const historyTop = paymentRowsBottom + 18;
+    const historyRowHeight = 18;
+    const historyHeaderHeight = historyRows.length ? 28 : 0;
+    const historyHeight = historyRows.length ? historyHeaderHeight + (historyRows.length * historyRowHeight) + 10 : 0;
+    const paymentBottom = historyRows.length ? historyTop + historyHeight : paymentRowsBottom + 16;
+
     drawRectStroke(ctx, 18, paymentTop, pageWidth - 18, paymentBottom, 1.1);
-    drawFit(ctx, "PAYMENT DETAILS:", 28, 210, paymentTop + 22, labelPaintSize);
-    drawReceiptModeCard(ctx, "CASH", record.cashAmount, record.cashAccount, paymentContentLeft, paymentTop + 46, modeWidth);
-    drawReceiptModeCard(ctx, "ONLINE", record.onlineAmount, record.onlineAccount, paymentContentLeft + modeWidth + 22, paymentTop + 46, modeWidth);
-    drawRoundBox(ctx, paymentContentLeft, paymentTop + 116, paymentContentRight, paymentTop + 136, 8);
-    drawLine(ctx, 318, paymentTop + 117, 318, paymentTop + 135);
-    drawFitCenter(ctx, "TOTAL AMOUNT", paymentContentLeft + 12, paymentTop + 116, 318 - 5, paymentTop + 136, labelPaintSize);
-    drawFitCenter(ctx, receiptCurrency(total), 325, paymentTop + 116, paymentContentRight - 8, paymentTop + 136, 9.1, true);
+    drawFit(ctx, "ADVANCE PAYMENT DETAILS:", 28, 210, paymentTop + 22, labelPaintSize);
+    drawReceiptModeCard(ctx, "Cash", cashAmount, record.cashAccount, cashCardLeft, modeCardTop, cashCardRight, modeCardTop + modeCardHeight);
+    drawReceiptModeCard(ctx, "Online", onlineAmount, record.onlineAccount, onlineCardLeft, modeCardTop, onlineCardRight, modeCardTop + modeCardHeight);
+    paymentRows.forEach((row, index) => drawAdvancePaymentRow(paymentSummaryTop + (index * paymentSummaryStep), row[0], row[1]));
+    if (historyRows.length) {
+      drawFit(ctx, "ADVANCE USED / RELEASE HISTORY:", 28, 230, historyTop + 12, labelPaintSize);
+      const rowStartTop = historyTop + 20;
+      historyRows.forEach((row, index) => {
+        const top = rowStartTop + (index * historyRowHeight);
+        const bottom = top + 15;
+        drawRoundBox(ctx, paymentContentLeft, top, paymentContentRight, bottom, 6);
+        const detailDivider = paymentContentLeft + 170;
+        const dateDivider = paymentContentLeft + 360;
+        drawLine(ctx, detailDivider, top + 1, detailDivider, bottom - 1);
+        drawLine(ctx, dateDivider, top + 1, dateDivider, bottom - 1);
+        drawFitCenter(ctx, row[0], paymentContentLeft + 6, top, detailDivider - 5, bottom, labelPaintSize);
+        drawFitCenter(ctx, row[1], detailDivider + 6, top, dateDivider - 5, bottom, smallPaintSize);
+        drawFitCenter(ctx, row[2], dateDivider + 6, top, paymentContentRight - 6, bottom, amountPaintSize, true);
+      });
+    }
 
     const footerTop = 808;
-    drawImageFit(ctx, assets.stamp, 365, Math.min(paymentBottom + 22, footerTop - 112), 555, footerTop - 8);
+    const stampTop = Math.max(640, paymentBottom + 12);
+    const stampBottom = footerTop - 8;
+    if (stampBottom - stampTop >= 48) drawImageFit(ctx, assets.stamp, 365, stampTop, 555, stampBottom);
     ctx.fillStyle = "#000";
     ctx.fillRect(6, footerTop, pageWidth - 12, 20);
     drawFit(ctx, "Thank you for your business! We appreciate your trust in Indian Steel and look forward to serving you again.", 12, pageWidth - 12, 821, 8, true, "center", "#fff");
   }
 
-  function drawReceiptModeCard(ctx, title, amount, account, left, top, width) {
-    const bottom = top + 58;
-    drawRoundBox(ctx, left, top, left + width, bottom, 8);
-    drawFit(ctx, title, left + 8, left + width - 8, top + 15, 8.8, true, "center");
-    drawRoundBox(ctx, left + 10, top + 22, left + width - 10, top + 42, 6);
-    drawFitCenter(ctx, receiptCurrency(amount), left + 12, top + 22, left + width - 12, top + 42, 9.1, true);
-    drawFit(ctx, amount > 0 ? account || "Indian Steel" : "-", left + 8, left + width - 8, bottom - 7, 7.2, true, "center");
+  function drawReceiptModeCard(ctx, title, amount, account, left, top, right, bottom) {
+    const enabled = Number(amount || 0) > 0;
+    const fill = enabled ? "#ffffff" : "#f3f6fa";
+    const textColor = enabled ? "#111827" : "#94a3b8";
+    drawFilledRoundBox(ctx, left, top, right, bottom, 8, fill, 0.75);
+    drawFit(ctx, title, left + 9, right - 9, top + 14, 10.2, true, "left", textColor);
+    const amountTop = top + 22;
+    const amountBottom = bottom - 6;
+    drawFilledRoundBox(ctx, left + 10, amountTop, right - 10, amountBottom, 6, fill, 0.75);
+    drawFitCenter(ctx, receiptCurrency(amount), left + 14, amountTop, right - 14, amountBottom, 9.1, true, textColor);
   }
 
   function saleReceiptItems(entry) {
@@ -4388,8 +4540,8 @@
     ctx.fillText(fitted, x, baseline);
   }
 
-  function drawFitCenter(ctx, text, left, top, right, bottom, size, bold = false) {
-    setReceiptFont(ctx, size, bold, "#111827", "center", "middle");
+  function drawFitCenter(ctx, text, left, top, right, bottom, size, bold = false, color = "#111827") {
+    setReceiptFont(ctx, size, bold, color, "center", "middle");
     const fitted = fittedCanvasText(ctx, text, Math.max(0, right - left));
     ctx.fillText(fitted, (left + right) / 2, (top + bottom) / 2);
   }
@@ -4418,6 +4570,17 @@
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 1.1;
     roundedPath(ctx, left, top, right - left, bottom - top, radius);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawFilledRoundBox(ctx, left, top, right, bottom, radius, fill, strokeWidth = 1.1) {
+    ctx.save();
+    roundedPath(ctx, left, top, right - left, bottom - top, radius);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = strokeWidth;
     ctx.stroke();
     ctx.restore();
   }
