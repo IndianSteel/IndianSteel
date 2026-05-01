@@ -8,7 +8,7 @@
   const DATA_KEY = "daily-sales-data-v1";
   const SESSION_KEY = "daily-sales-session-v1";
   const DRIVE_CONFIG_KEY = "daily-sales-drive-config-v1";
-  const APP_BUILD_VERSION = "20260501-android-header-clean-apk-71";
+  const APP_BUILD_VERSION = "20260501-android-header-clean-apk-72";
   const THEME_COLORS = {
     light: "#0d5bdd",
     dark: "#0b1f46"
@@ -968,7 +968,6 @@
       const isAndroid = /Android/i.test(navigator.userAgent || "");
       const installedMode = standaloneMode || iosStandalone;
       const installedIos = installedMode && isiOS;
-      const installedAndroid = installedMode && isAndroid && !isiOS;
       const smallViewportGap = keyboardGap > 0 && keyboardGap <= 80 ? keyboardGap : 0;
       const navLift = keyboardOpen ? 0 : Math.min(18, smallViewportGap);
       if (!stableViewportHeight) stableViewportHeight = layoutHeight || visualHeight;
@@ -976,7 +975,6 @@
       root.dataset.pwaInstalled = installedMode ? "true" : "false";
       root.dataset.pwaPlatform = isiOS ? "ios" : isAndroid ? "android" : "other";
       root.classList.toggle("ios-pwa-nav", installedIos);
-      root.classList.toggle("android-pwa-header", installedAndroid);
       if (installedIos) {
         root.style.setProperty("--nav-height", "76px");
         root.style.setProperty("--nav-plus-size", "54px");
@@ -994,15 +992,9 @@
         root.style.removeProperty("--ios-nav-safe-fill");
         root.style.removeProperty("--ios-nav-row-lift");
       }
-      if (installedAndroid) {
-        root.style.setProperty("--status-top", "0px");
-        root.style.setProperty("--header-title-top", "0px");
-        root.style.setProperty("--header-title-icon-top", "0px");
-      } else {
-        root.style.removeProperty("--status-top");
-        root.style.removeProperty("--header-title-top");
-        root.style.removeProperty("--header-title-icon-top");
-      }
+      root.style.removeProperty("--status-top");
+      root.style.removeProperty("--header-title-top");
+      root.style.removeProperty("--header-title-icon-top");
       forceInstalledIosBottomNav(installedIos);
       const screenHeight = Math.round(Math.max(window.screen?.height || 0, window.screen?.availHeight || 0));
       const appHeight = installedIos
