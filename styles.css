@@ -47,6 +47,8 @@ body {
   color: var(--ink);
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   text-rendering: geometricPrecision;
 }
 
@@ -56,6 +58,7 @@ body {
 
 button,
 input,
+textarea,
 select {
   font: inherit;
 }
@@ -67,8 +70,16 @@ button {
 }
 
 input,
+textarea,
 select {
   min-width: 0;
+}
+
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
+select {
+  font-size: 16px !important;
+  touch-action: manipulation;
 }
 
 .app-shell {
@@ -1223,13 +1234,27 @@ select {
 .settlement-tabs-card {
   display: flex;
   gap: 10px;
-  margin: 0 16px;
-  padding: 13px 12px;
+  margin: 0;
+  padding: 13px 16px;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
-  transform: translateY(-8px);
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 2px 5px rgba(15, 23, 42, .14);
+}
+
+.settlement-tabs-card .tab {
+  height: 40px;
+  border-radius: 7px;
+  background: var(--card);
+  font-size: 12px;
+  line-height: 15px;
+  font-weight: 900;
+}
+
+.settlement-tabs-card .tab.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
 }
 
 .settlement-content {
@@ -1240,14 +1265,31 @@ select {
   display: grid;
   align-items: center;
   gap: 14px;
-  margin: 2px 16px 8px;
+  margin: 8px 16px 8px;
 }
 
 .compact-total-card {
-  min-height: 72px;
+  height: 72px;
   padding: 12px;
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0;
+  text-align: left;
   box-shadow: var(--shadow);
+}
+
+.compact-total-card small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 15px;
+  font-weight: 900;
+}
+
+.compact-total-card b {
+  font-size: 18px;
+  line-height: 22px;
 }
 
 .settlement-list {
@@ -1282,18 +1324,25 @@ select {
 }
 
 .settlement-card-main .row-main b {
-  font-size: 14px;
-  line-height: 17px;
+  font-size: 16px;
+  line-height: 19px;
   font-weight: 900;
 }
 
 .settlement-card-main .row-main span {
-  font-size: 10px;
-  line-height: 12px;
+  font-size: 11px;
+  line-height: 14px;
 }
 
 .settlement-card-main .row-right {
   min-width: 58px;
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.settlement-card-main .money {
+  font-size: 15px;
+  line-height: 18px;
 }
 
 .settlement-card-actions {
@@ -3768,7 +3817,6 @@ select {
 
   .settlement-row,
   .settlement-card,
-  .settlement-tabs-card,
   .settlement-summary-grid,
   .stock-row,
   .section,
